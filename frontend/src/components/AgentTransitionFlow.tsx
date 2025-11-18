@@ -29,6 +29,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
   const [processedPatients, setProcessedPatients] = useState(0);
   const [eligibleCount, setEligibleCount] = useState(0);
   const [excludedCount, setExcludedCount] = useState(0);
+  const [sseEvents, setSseEvents] = useState<Array<{ timestamp: string; data: any }>>([]);
 
   const inclusionCount = trialData?.inclusion?.length || 0;
   const exclusionCount = trialData?.exclusion?.length || 0;
@@ -83,6 +84,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
     const startStreaming = async () => {
       try {
         setAgent2Status('searching');
+        setSseEvents([]); // Clear previous events
         
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -104,6 +106,8 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
           throw new Error('No response body');
         }
 
+        let buffer = ''; // Buffer for incomplete JSON
+
         while (true) {
           const { done, value } = await reader.read();
           
@@ -113,7 +117,11 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
           }
 
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
+          buffer += chunk;
+          
+          const lines = buffer.split('\n');
+          // Keep the last incomplete line in the buffer
+          buffer = lines.pop() || '';
           
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -134,16 +142,61 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
     const processEvent = (eventData: string) => {
       try {
         const data = JSON.parse(eventData);
-        console.log('SSE Event:', data);
+        const now = new Date();
+        const timestamp = `${now.toLocaleTimeString('en-US', { hour12: false })}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+        console.log(`[${timestamp}] SSE Event:`, data);
+
+        // Store event with timestamp
+        setSseEvents(prev => [...prev, { timestamp, data }]);
 
         switch (data.status) {
           case 'layer1_start':
+            console.log(`[${timestamp}] Layer 1 starting...`);
             setAgent2Status('searching');
             break;
 
           case 'layer1_results':
+            console.log(`[${timestamp}] Layer 1 results: ${data.totalPatients} patients found`);
             setTotalPatients(data.totalPatients || 0);
             setAgent2Status('processing');
+            
+            // Immediately spawn all patient boxes with pre-populated loading criteria
+            if (data.patientIds && Array.isArray(data.patientIds)) {
+              console.log(`[${timestamp}] Creating ${data.patientIds.length} patient boxes with loading criteria...`);
+              setPatients(prev => {
+                const newPatients = new Map(prev);
+                data.patientIds.forEach((patientId: string) => {
+                  // Pre-populate all inclusion and exclusion criteria in loading state
+                  const initialCriteria: CriterionState[] = [];
+                  
+                  // Add all inclusion criteria
+                  for (let i = 0; i < inclusionCount; i++) {
+                    initialCriteria.push({
+                      index: i,
+                      type: 'inclusion',
+                      status: 'loading'
+                    });
+                  }
+                  
+                  // Add all exclusion criteria
+                  for (let i = 0; i < exclusionCount; i++) {
+                    initialCriteria.push({
+                      index: i,
+                      type: 'exclusion',
+                      status: 'loading'
+                    });
+                  }
+                  
+                  newPatients.set(patientId, {
+                    patientId,
+                    status: 'loading',
+                    criteria: initialCriteria
+                  });
+                });
+                console.log(`[${timestamp}] Patient boxes created:`, newPatients.size);
+                return newPatients;
+              });
+            }
             break;
 
           case 'processing_patient':
@@ -269,6 +322,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
           eligibleCount,
           excludedCount,
           status: agent2Status,
+          sseEvents,
         }}
         patients={patients}
         inclusionCount={inclusionCount}

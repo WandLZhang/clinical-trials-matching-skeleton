@@ -1,4 +1,5 @@
 import React from 'react';
+import { TooltipWrapper } from '../TooltipWrapper';
 import './orchestrator.css';
 
 interface CriterionBoxProps {
@@ -23,13 +24,25 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
   field
 }) => {
   const getStatusIcon = () => {
+    if (status === 'loading') {
+      return (
+        <span style={{
+          display: 'inline-block',
+          width: '14px',
+          height: '14px',
+          border: '2px solid #9E9E9E',
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: 'spin 0.8s linear infinite'
+        }} />
+      );
+    }
+    
     switch (status) {
       case 'pass':
         return '✓';
       case 'fail':
         return '✗';
-      case 'loading':
-        return '∿';
       default:
         return '?';
     }
@@ -80,24 +93,33 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
+  const tooltipContent = (
+    <div>
+      <p><strong>Criterion:</strong> {criterion}</p>
+      <p><strong>Evidence:</strong> {evidence}</p>
+      <p><strong>Reasoning:</strong> {reasoning}</p>
+    </div>
+  );
+
   return (
-    <div 
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '6px 12px',
-        backgroundColor: getBackgroundColor(),
-        border: `1px solid ${getBorderColor()}`,
-        borderRadius: '4px',
-        fontSize: '11px',
-        minHeight: '32px',
-        fontFamily: 'monospace'
-      }}
-      title={`${criterion}\n\nEvidence: ${evidence}\n\nReasoning: ${reasoning}`}
-    >
-      <span style={{ 
-        fontSize: '14px',
+    <TooltipWrapper content={tooltipContent} position="bottom">
+      <div 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '6px 12px',
+          backgroundColor: getBackgroundColor(),
+          border: `1px solid ${getBorderColor()}`,
+          borderRadius: '4px',
+          fontSize: '11px',
+          minHeight: '32px',
+          fontFamily: 'monospace',
+          cursor: 'pointer'
+        }}
+      >
+        <span style={{ 
+          fontSize: '14px',
         fontWeight: 'bold',
         color: getTextColor(),
         minWidth: '16px'
@@ -151,6 +173,7 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
           {truncateText(evidence, 40)}
         </span>
       )}
-    </div>
+      </div>
+    </TooltipWrapper>
   );
 };

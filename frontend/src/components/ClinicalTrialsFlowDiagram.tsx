@@ -48,6 +48,7 @@ interface ClinicalTrialsFlowDiagramProps {
     eligibleCount?: number;
     excludedCount?: number;
     status?: 'searching' | 'processing' | 'complete';
+    sseEvents?: Array<{ timestamp: string; data: any }>;
   };
   patients?: Map<string, PatientState>;
   inclusionCount?: number;
@@ -124,6 +125,7 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
           eligibleCount: agent2Data.eligibleCount || 0,
           excludedCount: agent2Data.excludedCount || 0,
           status: agent2Data.status || 'searching',
+          sseEvents: agent2Data.sseEvents || [],
         },
         draggable: false,
       };
@@ -177,6 +179,7 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
               eligibleCount: agent2Data.eligibleCount || 0,
               excludedCount: agent2Data.excludedCount || 0,
               status: agent2Data.status || 'searching',
+              sseEvents: agent2Data.sseEvents || [],
             },
           };
         }
@@ -224,6 +227,13 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
       });
     });
 
+    // Store current viewport before updating nodes
+    const currentViewport = {
+      x: -AGENT2_X + 400,
+      y: -50,
+      zoom: 0.8,
+    };
+
     // Update nodes and edges
     setNodes((nds) => {
       const agent1Node = nds.find((n) => n.id === 'agent1');
@@ -237,7 +247,10 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
       return [agent1ToAgent2Edge!, ...newPatientEdges];
     });
 
-    // Don't pan viewport when patients appear - keep focused on Agent 2
+    // Keep viewport locked on Agent 2 when patients appear
+    setTimeout(() => {
+      setViewport(currentViewport, { duration: 0 });
+    }, 0);
   }, [patients, inclusionCount, exclusionCount, setNodes, setEdges, setViewport]);
 
   return (

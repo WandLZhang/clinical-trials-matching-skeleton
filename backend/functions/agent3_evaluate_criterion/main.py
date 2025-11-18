@@ -136,21 +136,27 @@ def apply_semantic_filter(patient_bundle, criterion, criterion_type):
     """Apply Gemini-based semantic criterion evaluation"""
     bundle_text = json.dumps(patient_bundle[:5], indent=2)
     
-    prompt = f"""You are a clinical trial eligibility expert. Evaluate if this patient meets the criterion.
+    prompt = f"""You are a clinical trial eligibility expert evaluating patient data against trial criteria.
 
 PATIENT FHIR DATA:
 {bundle_text}
 
-CRITERION TO EVALUATE:
-"{criterion}"
+CRITERION: "{criterion}"
 
-Analyze the patient's FHIR data and determine:
+Your task: Determine if the patient meets this criterion based on their FHIR data.
 
-1. If the data is MISSING/not documented → return "MISSING"
-2. If the data exists but does NOT meet criterion → return "FAIL"
-3. If the data exists AND meets criterion → return "PASS"
+Clinical trial context: When evaluating exclusion criteria about "pathology causing symptoms", understand that:
+- Trials recruit patients WITH the condition being studied (e.g., chronic low back pain)
+- But EXCLUDE patients whose symptoms stem from serious underlying disease (tumors, infections, inflammatory arthritis)
+- Simple diagnostic codes (e.g., "Chronic Low Back Pain" M54.5) indicate the symptom, NOT a serious underlying pathology
+- Only actual diagnoses of serious diseases (neoplasms, infections, rheumatoid arthritis) constitute pathology requiring exclusion
 
-IMPORTANT: If there is no information in the FHIR data to confirm the criterion (e.g., no VAS pain score documented, no language/communication field), you MUST return "MISSING" - do not guess or infer.
+Evaluation rules:
+1. If data is MISSING/not documented → return "MISSING"
+2. If data exists but does NOT meet criterion → return "FAIL"  
+3. If data exists AND meets criterion → return "PASS"
+
+CRITICAL: Do not guess or infer. If information is not explicitly in the FHIR data, return "MISSING".
 
 Return ONLY a JSON object:
 {{

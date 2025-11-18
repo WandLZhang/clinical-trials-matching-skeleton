@@ -18,6 +18,8 @@ interface PatientState {
   patientId: string;
   status: 'loading' | 'eligible' | 'excluded' | 'requires_followup';
   criteria: CriterionState[];
+  followUpItems?: string[];
+  reasonType?: string;
 }
 
 interface OrchestratorFlowProps {
@@ -36,6 +38,7 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
   const [excludedCount, setExcludedCount] = useState(0);
   const [agent2Status, setAgent2Status] = useState<'searching' | 'processing' | 'complete'>('searching');
   const [sseEvents, setSseEvents] = useState<Array<{ timestamp: string; data: any }>>([]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const inclusionCount = trialData?.inclusion?.length || 5;
   const exclusionCount = trialData?.exclusion?.length || 10;
@@ -109,10 +112,11 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
     const processEvent = (eventData: string) => {
       try {
         const data = JSON.parse(eventData);
-        console.log('SSE Event:', data);
-
+        
         // Track all SSE events for raw display
-        const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+        const now = new Date();
+        const timestamp = `${now.toLocaleTimeString('en-US', { hour12: false })}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+        console.log(`[${timestamp}] SSE Event:`, data);
         setSseEvents(prev => [...prev, { timestamp, data }]);
 
         switch (data.status) {
@@ -122,6 +126,7 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
 
           case 'layer1_complete':
             console.log('Search query constructed:', data.query);
+            setSearchQuery(data.query || '');
             break;
 
           case 'searching':
@@ -132,15 +137,36 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
             setTotalPatients(data.totalPatients || 0);
             setAgent2Status('processing');
             
-            // Immediately spawn all patient boxes
+            // Immediately spawn all patient boxes with pre-populated loading criteria
             if (data.patientIds && Array.isArray(data.patientIds)) {
               setPatients(prev => {
                 const newPatients = new Map(prev);
                 data.patientIds.forEach((patientId: string) => {
+                  // Pre-populate all inclusion and exclusion criteria in loading state
+                  const initialCriteria: CriterionState[] = [];
+                  
+                  // Add all inclusion criteria
+                  for (let i = 0; i < inclusionCount; i++) {
+                    initialCriteria.push({
+                      index: i,
+                      type: 'inclusion',
+                      status: 'loading'
+                    });
+                  }
+                  
+                  // Add all exclusion criteria
+                  for (let i = 0; i < exclusionCount; i++) {
+                    initialCriteria.push({
+                      index: i,
+                      type: 'exclusion',
+                      status: 'loading'
+                    });
+                  }
+                  
                   newPatients.set(patientId, {
                     patientId,
                     status: 'loading',
-                    criteria: []
+                    criteria: initialCriteria
                   });
                 });
                 return newPatients;
@@ -234,6 +260,8 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
                 }
 
                 patient.status = status;
+                patient.followUpItems = data.patient_result?.follow_up_items || [];
+                patient.reasonType = data.reason_type;
                 newPatients.set(data.patientId, { ...patient });
               }
               

@@ -511,6 +511,15 @@
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Scrollbar Styling */
 .orchestrator-right::-webkit-scrollbar {
   width: 8px;

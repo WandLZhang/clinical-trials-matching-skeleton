@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { TooltipWrapper } from './TooltipWrapper';
 import './AgentBox.css';
 
 interface Agent1Props {
@@ -29,6 +30,18 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
   const addLog = (type: LogEntry['type'], message: string) => {
     const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
     setLogs(prev => [...prev, { timestamp, type, message }]);
+    
+    // Also log to console for parity
+    const prefix = type === 'thinking' ? '🤔' : type === 'success' ? '✓' : '';
+    const logMessage = `[${timestamp}] ${prefix} ${message}`;
+    
+    if (type === 'success') {
+      console.log(`%c${logMessage}`, 'color: #4CAF50');
+    } else if (type === 'thinking') {
+      console.log(`%c${logMessage}`, 'color: #FFC107');
+    } else {
+      console.log(`%c${logMessage}`, 'color: #9E9E9E');
+    }
   };
 
   // Auto-scroll logs to bottom
@@ -100,6 +113,9 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
             await new Promise(resolve => setTimeout(resolve, 10));
           }
         }
+        
+        // Add a delay to ensure React has rendered all state updates before triggering Agent 2
+        await new Promise(resolve => setTimeout(resolve, 150));
         
         setTrialData({
           nctId: data.nctId,
@@ -205,8 +221,7 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
             height: '320px'
           }}>
             {/* Left: Execution Logs */}
-            <div 
-              className="nopan"
+            <div
               style={{ 
                 backgroundColor: '#1e1e1e', 
                 borderRadius: '8px', 
@@ -219,33 +234,42 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
                 flexDirection: 'column'
               }}
             >
-              <div style={{ color: '#4CAF50', marginBottom: '12px', fontWeight: 'bold', flexShrink: 0 }}>
-                Execution Logs
+              <div style={{ 
+                marginBottom: '12px',
+                flexShrink: 0 
+              }}>
+                <div style={{ color: '#4CAF50', fontWeight: 'bold' }}>
+                  Execution Logs
+                </div>
               </div>
-              <div style={{ flex: 1, overflow: 'auto' }}>
-                {logs.map((log, index) => (
-                  <div key={index} style={{ 
-                    marginBottom: '8px',
-                    color: log.type === 'success' ? '#4CAF50' : 
-                           log.type === 'thinking' ? '#FFC107' : '#9E9E9E',
-                    display: 'flex',
-                    gap: '8px'
-                  }}>
-                    <span style={{ opacity: 0.7 }}>[{log.timestamp}]</span>
-                    <span>
-                      {log.type === 'thinking' && '🤔 '}
-                      {log.type === 'success' && '✓ '}
-                      {log.message}
-                    </span>
-                  </div>
-                ))}
-                <div ref={logsEndRef} />
-              </div>
+              <TooltipWrapper
+                content={logs.map(log => `[${log.timestamp}] ${log.message}`).join('\n')}
+                position="bottom"
+              >
+                <div style={{ flex: 1, overflow: 'auto', cursor: 'pointer' }}>
+                  {logs.map((log, index) => (
+                    <div key={index} style={{ 
+                      marginBottom: '8px',
+                      color: log.type === 'success' ? '#4CAF50' : 
+                             log.type === 'thinking' ? '#FFC107' : '#9E9E9E',
+                      display: 'flex',
+                      gap: '8px'
+                    }}>
+                      <span style={{ opacity: 0.7 }}>[{log.timestamp}]</span>
+                      <span>
+                        {log.type === 'thinking' && '🤔 '}
+                        {log.type === 'success' && '✓ '}
+                        {log.message}
+                      </span>
+                    </div>
+                  ))}
+                  <div ref={logsEndRef} />
+                </div>
+              </TooltipWrapper>
             </div>
 
             {/* Right: JSON Response */}
-            <div 
-              className="nopan"
+            <div
               style={{ 
                 backgroundColor: '#1e1e1e', 
                 borderRadius: '8px', 
@@ -253,20 +277,31 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
                 fontFamily: 'monospace',
                 fontSize: '12px',
                 overflow: 'auto',
-                height: '100%'
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column'
               }}
             >
-              <div style={{ color: '#2196F3', marginBottom: '12px', fontWeight: 'bold' }}>
-                JSON Response
-              </div>
-              <pre style={{ 
-                margin: 0, 
-                color: '#E0E0E0',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
+              <div style={{ 
+                marginBottom: '12px',
+                flexShrink: 0 
               }}>
-                {jsonResponse}
-              </pre>
+                <div style={{ color: '#2196F3', fontWeight: 'bold' }}>
+                  JSON Response
+                </div>
+              </div>
+              <TooltipWrapper content={jsonResponse} position="left">
+                <div style={{ flex: 1, overflow: 'auto', cursor: 'pointer' }}>
+                  <pre style={{ 
+                    margin: 0, 
+                    color: '#E0E0E0',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {jsonResponse}
+                  </pre>
+                </div>
+              </TooltipWrapper>
             </div>
           </div>
 

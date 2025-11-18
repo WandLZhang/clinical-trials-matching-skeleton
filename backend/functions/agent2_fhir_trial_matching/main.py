@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, date
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # --- Initialize Logging ---
 logging.basicConfig(level=logging.INFO)
@@ -242,37 +243,45 @@ def process_single_patient(idx, patient_id, search_results, inclusion_criteria, 
             **filter_result
         })
     
-    # Determine eligibility (simplified 3-state system)
+    # Determine eligibility (fixed logic!)
     inclusion_results = [r for r in filter_results if r['criterion_type'] == 'INCLUSION']
     exclusion_results = [r for r in filter_results if r['criterion_type'] == 'EXCLUSION']
-    
-    # Check for MISSING data
-    has_missing = any(r['result'] == 'MISSING' for r in inclusion_results)
     
     # Check if any inclusion FAILED (patient doesn't meet criterion)
     failed_inclusion = any(r['result'] == 'FAIL' for r in inclusion_results)
     
-    # Check if any exclusion was violated (patient meets exclusion criterion)
-    violated_exclusion = any(r['result'] == 'FAIL' for r in exclusion_results)
+    # Check if any exclusion was PASSED (patient meets exclusion criterion - BAD!)
+    # Remember: For exclusions, PASS = patient has the exclusionary condition
+    violated_exclusion = any(r['result'] == 'PASS' for r in exclusion_results)
     
-    # Check if all inclusions PASSED
-    all_passed = all(r['result'] == 'PASS' for r in inclusion_results)
+    # Check if all inclusions PASSED (no FAIL or MISSING)
+    all_inclusions_passed = all(r['result'] == 'PASS' for r in inclusion_results)
     
-    # Simple eligibility logic:
-    # 1. Exclusion violation → EXCLUDED
-    # 2. Failed inclusion → EXCLUDED
-    # 3. All passed → ELIGIBLE
-    # 4. Has missing data (but otherwise would pass) → REQUIRES_FOLLOW_UP
+    # Check if all exclusions FAILED (patient doesn't have any exclusionary conditions)
+    all_exclusions_passed = all(r['result'] == 'FAIL' for r in exclusion_results)
+    
+    # Check for MISSING data in inclusions
+    has_missing_inclusion = any(r['result'] == 'MISSING' for r in inclusion_results)
+    
+    # Eligibility logic (prioritized):
+    # 1. Exclusion violated (PASS on exclusion) → EXCLUDED
+    # 2. Inclusion failed (FAIL on inclusion) → EXCLUDED  
+    # 3. All inclusions PASS + all exclusions FAIL → ELIGIBLE
+    # 4. Has MISSING inclusion data (but no hard failures) → REQUIRES_FOLLOW_UP
     if violated_exclusion:
         eligibility = 'EXCLUDED'
         reason_type = 'exclusion_violated'
     elif failed_inclusion:
         eligibility = 'EXCLUDED'
         reason_type = 'inclusion_failed'
-    elif all_passed:
+    elif all_inclusions_passed and all_exclusions_passed:
         eligibility = 'ELIGIBLE'
         reason_type = 'fully_eligible'
-    else:  # has_missing
+    elif has_missing_inclusion:
+        eligibility = 'REQUIRES_FOLLOW_UP'
+        reason_type = 'missing_data'
+    else:
+        # Edge case: has missing exclusion data but passed inclusions
         eligibility = 'REQUIRES_FOLLOW_UP'
         reason_type = 'missing_data'
     
@@ -306,7 +315,7 @@ def apply_all_filters(patient_id, patient_bundle, inclusion_criteria, exclusion_
     # Worker function URL (local for now, will be Cloud Function URL in production)
     WORKER_URL = os.environ.get('WORKER_URL', 'http://localhost:8083')
     
-    # Build all tasks (criterion evaluations)
+    # Build ALL tasks at once (both inclusion AND exclusion)
     all_tasks = []
     
     # Inclusion criteria
@@ -320,7 +329,18 @@ def apply_all_filters(patient_id, patient_bundle, inclusion_criteria, exclusion_
             'filter_type': determine_filter_type(criterion)
         })
     
-    # Spawn ALL workers in parallel (unlimited parallelism!)
+    # Exclusion criteria
+    for idx, criterion in enumerate(exclusion_criteria):
+        all_tasks.append({
+            'patient_id': patient_id,
+            'patient_bundle': patient_bundle,
+            'criterion': criterion,
+            'criterion_type': 'EXCLUSION',
+            'criterion_index': idx,
+            'filter_type': determine_filter_type(criterion)
+        })
+    
+    # Spawn ALL workers in parallel (inclusion AND exclusion together!)
     results = []
     with ThreadPoolExecutor(max_workers=len(all_tasks)) as executor:
         # Submit all HTTP requests at once
@@ -342,57 +362,21 @@ def apply_all_filters(patient_id, patient_bundle, inclusion_criteria, exclusion_
                     'criterion_index': task['criterion_index'],
                     'criterion_type': task['criterion_type'],
                     'result': 'ERROR',
-                    'reasoning': str(e)
+                    'reasoning': str(e),
+                    'patient_id': patient_id
                 })
-    
-    # Sort by criterion_index to maintain order
-    results.sort(key=lambda x: x.get('criterion_index', 0))
-    
-    # Check if we should evaluate exclusions (only if no hard failures)
-    inclusion_results = [r for r in results if r.get('criterion_type') == 'INCLUSION']
-    no_hard_failures = not any(r['result'] == 'FAIL' for r in inclusion_results)
-    
-    # Evaluate exclusions if no hard failures (allow MISSING/PASS)
-    if no_hard_failures:
-        exclusion_tasks = []
-        for idx, criterion in enumerate(exclusion_criteria):
-            exclusion_tasks.append({
-                'patient_id': patient_id,
-                'patient_bundle': patient_bundle,
-                'criterion': criterion,
-                'criterion_type': 'EXCLUSION',
-                'criterion_index': idx,
-                'filter_type': determine_filter_type(criterion)
-            })
-        
-        # Spawn exclusion workers in parallel
-        if exclusion_tasks:
-            with ThreadPoolExecutor(max_workers=len(exclusion_tasks)) as executor:
-                future_to_task = {
-                    executor.submit(invoke_worker, task): task
-                    for task in exclusion_tasks
-                }
-                
-                for future in as_completed(future_to_task):
-                    try:
-                        result = future.result()
-                        results.append(result)
-                    except Exception as e:
-                        logging.exception(f"Exclusion worker failed: {e}")
-                        task = future_to_task[future]
-                        results.append({
-                            'criterion': task['criterion'],
-                            'criterion_index': task['criterion_index'],
-                            'criterion_type': task['criterion_type'],
-                            'result': 'ERROR',
-                            'reasoning': str(e)
-                        })
     
     return results
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type((requests.exceptions.RequestException, requests.exceptions.Timeout)),
+    reraise=True
+)
 def invoke_worker(task):
-    """Invoke worker function via HTTP to evaluate a single criterion"""
+    """Invoke worker function via HTTP to evaluate a single criterion with retry logic"""
     WORKER_URL = os.environ.get('WORKER_URL', 'http://localhost:8083')
     
     try:
@@ -404,7 +388,7 @@ def invoke_worker(task):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        logging.exception(f"HTTP call to worker failed: {e}")
+        logging.warning(f"HTTP call to worker failed (will retry): {e}")
         raise
 
 
