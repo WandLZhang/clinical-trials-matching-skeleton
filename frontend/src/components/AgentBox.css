@@ -1,0 +1,258 @@
+.agent-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 100%);
+  padding: 24px;
+}
+
+.agent-box {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-large);
+  padding: 32px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: var(--elevation-2);
+  animation: slideInRight 0.4s var(--easing-standard);
+}
+
+.agent-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+.agent-icon {
+  font-size: 32px;
+  color: var(--color-primary);
+}
+
+.agent-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.agent-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background-color: var(--color-surface-variant);
+  border-radius: var(--radius-medium);
+}
+
+.status-icon {
+  font-size: 24px;
+  color: var(--color-primary);
+}
+
+.trial-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-label {
+  color: var(--color-on-surface-variant);
+}
+
+.info-value {
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+.progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: var(--color-surface-variant);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--color-primary);
+  transition: width 0.3s var(--easing-standard);
+}
+
+.progress-text {
+  color: var(--color-on-surface-variant);
+  text-align: right;
+}
+
+.completion-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background-color: rgba(26, 115, 232, 0.08);
+  border-radius: var(--radius-medium);
+  animation: fadeIn 0.3s var(--easing-emphasized-decelerate);
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-icon {
+  font-size: 20px;
+  color: var(--color-primary);
+}
+
+/* Wavy Progress Indicator */
+.wavy-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+}
+
+.wavy-bar {
+  width: 4px;
+  height: 24px;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: wavyProgress 1.5s ease-in-out infinite;
+}
+
+.wavy-bar:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.wavy-bar:nth-child(2) {
+  animation-delay: 150ms;
+}
+
+.wavy-bar:nth-child(3) {
+  animation-delay: 300ms;
+}
+
+.wavy-bar:nth-child(4) {
+  animation-delay: 450ms;
+}
+
+.wavy-bar:nth-child(5) {
+  animation-delay: 600ms;
+}
+
+/* Patient List */
+.patient-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.patient-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background-color: var(--color-surface-container);
+  border-radius: var(--radius-small);
+}
+
+.patient-id {
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.patient-score {
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+}
+
+/* Criterion Analysis */
+.criterion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.criterion-item {
+  padding: 12px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-small);
+}
+
+.criterion-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.criterion-status {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.criterion-status.met {
+  color: #34A853;
+}
+
+.criterion-status.not-met {
+  color: #EA4335;
+}
+
+.criterion-text {
+  font-weight: 500;
+  flex: 1;
+}
+
+.criterion-evidence {
+  color: var(--color-on-surface-variant);
+  font-size: 12px;
+  margin-left: 28px;
+}
+
+/* Summary Stats */
+.summary-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
+  background-color: var(--color-surface-variant);
+  border-radius: var(--radius-medium);
+}
+
+.summary-stat {
+  text-align: center;
+}
+
+.summary-stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.summary-stat-label {
+  color: var(--color-on-surface-variant);
+  margin-top: 4px;
+}
+
+/* Shimmer Animation */
+@keyframes shimmer {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: 0% center;
+  }
+}

@@ -1,0 +1,111 @@
+.welcome-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 100%);
+  padding: 24px;
+}
+
+.welcome-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-extra-large);
+  padding: 48px;
+  max-width: 600px;
+  width: 100%;
+  box-shadow: var(--elevation-3);
+  text-align: center;
+  animation: fadeIn 0.5s var(--easing-emphasized-decelerate);
+  transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.welcome-card.fade-out {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.welcome-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary-container);
+  color: var(--color-primary);
+  margin-bottom: 24px;
+}
+
+.welcome-title {
+  margin-bottom: 16px;
+  font-weight: 700 !important;
+  line-height: 1.2;
+}
+
+.title-part-1 {
+  color: #000000;
+  font-weight: 700;
+}
+
+.title-part-2 {
+  background: linear-gradient(135deg, #1A73E8 0%, #4285F4 50%, #34A853 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+}
+
+.welcome-subtitle {
+  font-size: 1.5rem;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 40px;
+  font-weight: 300;
+  line-height: 1.5;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.welcome-button {
+  position: relative;
+  height: 40px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary);
+  color: var(--color-on-primary);
+  cursor: pointer;
+  overflow: hidden;
+  transition: box-shadow var(--duration-short4) var(--easing-standard);
+  box-shadow: var(--elevation-1);
+}
+
+.welcome-button:hover {
+  box-shadow: var(--elevation-2);
+}
+
+.welcome-button:active {
+  box-shadow: var(--elevation-1);
+}
+
+.welcome-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-color: currentColor;
+  opacity: 0;
+  transition: opacity var(--duration-short3) var(--easing-standard);
+}
+
+.welcome-button:hover::after {
+  opacity: 0.08;
+}
+
+.welcome-button:active::after {
+  opacity: 0.12;
+}
+
+.welcome-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
