@@ -3,19 +3,11 @@ import { TooltipWrapper } from '../TooltipWrapper';
 import '../AgentBox.css';
 
 interface Agent2BoxProps {
-  totalPatients: number;
-  processedPatients: number;
-  eligibleCount: number;
-  excludedCount: number;
   status: 'searching' | 'processing' | 'complete';
   sseEvents: Array<{ timestamp: string; data: any }>;
 }
 
 export const Agent2Box: React.FC<Agent2BoxProps> = ({
-  totalPatients,
-  processedPatients,
-  eligibleCount,
-  excludedCount,
   status,
   sseEvents
 }) => {
@@ -35,8 +27,6 @@ export const Agent2Box: React.FC<Agent2BoxProps> = ({
     if (status === 'processing') return 'Evaluating Patients...';
     return 'Searching FHIR Store...';
   };
-
-  const progress = totalPatients > 0 ? (processedPatients / totalPatients) * 100 : 0;
 
   return (
     <div className="agent-container">
@@ -78,40 +68,6 @@ export const Agent2Box: React.FC<Agent2BoxProps> = ({
               {getStatusDisplay()}
             </span>
           </div>
-
-          {totalPatients > 0 && (
-            <div className="trial-info">
-              <p className="body-medium info-label">Patient Progress:</p>
-              <div style={{ marginTop: '8px' }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  marginBottom: '4px',
-                  fontSize: '14px',
-                  color: '#666'
-                }}>
-                  <span>{processedPatients} / {totalPatients} processed</span>
-                  <span>{Math.round(progress)}%</span>
-                </div>
-                <div style={{
-                  width: '100%',
-                  height: '8px',
-                  backgroundColor: '#E0E0E0',
-                  borderRadius: '4px',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{
-                    height: '100%',
-                    width: `${progress}%`,
-                    background: 'linear-gradient(90deg, #1976D2, #42A5F5)',
-                    transition: 'width 0.3s ease',
-                    animation: status === 'processing' ? 'shimmer 2s linear infinite' : 'none',
-                    backgroundSize: '200% 100%'
-                  }} />
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Full-width Execution Logs */}
           <div style={{ 

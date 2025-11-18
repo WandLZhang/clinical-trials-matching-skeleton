@@ -6,36 +6,29 @@ interface AgentTransitionFlowProps {
   onComplete?: () => void;
 }
 
-interface CriterionState {
-  index: number;
-  type: 'inclusion' | 'exclusion';
-  status: 'loading' | 'pass' | 'fail' | 'unclear';
-  criterion?: string;
-  evidence?: string;
-  reasoning?: string;
-}
-
-interface PatientState {
-  patientId: string;
-  status: 'loading' | 'eligible' | 'excluded' | 'requires_followup';
-  criteria: CriterionState[];
-}
-
 export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComplete }) => {
   const [trialData, setTrialData] = useState<any>(null);
   const [agent2Status, setAgent2Status] = useState<'searching' | 'processing' | 'complete'>('searching');
-  const [patients, setPatients] = useState<Map<string, PatientState>>(new Map());
   const [totalPatients, setTotalPatients] = useState(0);
   const [processedPatients, setProcessedPatients] = useState(0);
   const [eligibleCount, setEligibleCount] = useState(0);
   const [excludedCount, setExcludedCount] = useState(0);
   const [sseEvents, setSseEvents] = useState<Array<{ timestamp: string; data: any }>>([]);
 
-  const inclusionCount = trialData?.inclusion?.length || 0;
-  const exclusionCount = trialData?.exclusion?.length || 0;
+  // Use refs to track ongoing requests and prevent duplicates
+  const agent1RequestRef = React.useRef<AbortController | null>(null);
+  const agent2RequestRef = React.useRef<AbortController | null>(null);
 
-  // Simulate Agent 1 data fetching
+  // Simulate Agent 1 data fetching with proper cleanup
   useEffect(() => {
+    // Cancel any previous request
+    if (agent1RequestRef.current) {
+      agent1RequestRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    agent1RequestRef.current = abortController;
+
     const fetchTrialData = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_AGENT1_URL;
@@ -51,6 +44,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ nctId: 'NCT06895057' }),
+          signal: abortController.signal
         });
 
         if (!response.ok) {
@@ -58,19 +52,40 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
         }
 
         const data = await response.json();
-        setTrialData(data);
+        
+        // Only update state if this request wasn't cancelled
+        if (!abortController.signal.aborted) {
+          setTrialData(data);
+        }
 
-      } catch (err) {
-        console.error('Error fetching trial data:', err);
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('Agent 1 request aborted');
+        } else {
+          console.error('Error fetching trial data:', err);
+        }
       }
     };
 
     fetchTrialData();
+
+    // Cleanup
+    return () => {
+      abortController.abort();
+      if (agent1RequestRef.current === abortController) {
+        agent1RequestRef.current = null;
+      }
+    };
   }, []);
 
   // Start Agent 2 when trial data is available
   useEffect(() => {
     if (!trialData) return;
+
+    // Cancel any previous Agent 2 request
+    if (agent2RequestRef.current) {
+      agent2RequestRef.current.abort();
+    }
 
     const apiUrl = import.meta.env.VITE_API_AGENT2_URL;
     
@@ -80,6 +95,15 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
     }
 
     const abortController = new AbortController();
+    agent2RequestRef.current = abortController;
+
+    // Reset state for new streaming session
+    setAgent2Status('searching');
+    setSseEvents([]);
+    setTotalPatients(0);
+    setProcessedPatients(0);
+    setEligibleCount(0);
+    setExcludedCount(0);
 
     const startStreaming = async () => {
       try {
@@ -159,129 +183,24 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
             console.log(`[${timestamp}] Layer 1 results: ${data.totalPatients} patients found`);
             setTotalPatients(data.totalPatients || 0);
             setAgent2Status('processing');
-            
-            // Immediately spawn all patient boxes with pre-populated loading criteria
-            if (data.patientIds && Array.isArray(data.patientIds)) {
-              console.log(`[${timestamp}] Creating ${data.patientIds.length} patient boxes with loading criteria...`);
-              setPatients(prev => {
-                const newPatients = new Map(prev);
-                data.patientIds.forEach((patientId: string) => {
-                  // Pre-populate all inclusion and exclusion criteria in loading state
-                  const initialCriteria: CriterionState[] = [];
-                  
-                  // Add all inclusion criteria
-                  for (let i = 0; i < inclusionCount; i++) {
-                    initialCriteria.push({
-                      index: i,
-                      type: 'inclusion',
-                      status: 'loading'
-                    });
-                  }
-                  
-                  // Add all exclusion criteria
-                  for (let i = 0; i < exclusionCount; i++) {
-                    initialCriteria.push({
-                      index: i,
-                      type: 'exclusion',
-                      status: 'loading'
-                    });
-                  }
-                  
-                  newPatients.set(patientId, {
-                    patientId,
-                    status: 'loading',
-                    criteria: initialCriteria
-                  });
-                });
-                console.log(`[${timestamp}] Patient boxes created:`, newPatients.size);
-                return newPatients;
-              });
-            }
             break;
 
           case 'processing_patient':
-            setPatients(prev => {
-              const newPatients = new Map(prev);
-              newPatients.set(data.patientId, {
-                patientId: data.patientId,
-                status: 'loading',
-                criteria: []
-              });
-              return newPatients;
-            });
+            // Just log the event, no patient state management
             break;
 
           case 'filter_result':
-            setPatients(prev => {
-              const newPatients = new Map(prev);
-              const patient = newPatients.get(data.patientId);
-              
-              if (patient) {
-                const criteriaType = data.criterion_type === 'INCLUSION' ? 'inclusion' : 'exclusion';
-                const criterionIndex = data.criterion_index;
-                
-                let status: 'pass' | 'fail' | 'unclear' = 'unclear';
-                if (data.result === 'PASS' || data.result === 'MET') {
-                  status = 'pass';
-                } else if (data.result === 'FAIL' || data.result === 'VIOLATED' || data.result === 'NOT_MET') {
-                  status = 'fail';
-                }
-
-                const existingCriterionIdx = patient.criteria.findIndex(
-                  c => c.index === criterionIndex && c.type === criteriaType
-                );
-
-                if (existingCriterionIdx >= 0) {
-                  patient.criteria[existingCriterionIdx] = {
-                    index: criterionIndex,
-                    type: criteriaType,
-                    status,
-                    criterion: data.criterion,
-                    evidence: data.evidence,
-                    reasoning: data.reasoning
-                  };
-                } else {
-                  patient.criteria.push({
-                    index: criterionIndex,
-                    type: criteriaType,
-                    status,
-                    criterion: data.criterion,
-                    evidence: data.evidence,
-                    reasoning: data.reasoning
-                  });
-                }
-
-                newPatients.set(data.patientId, { ...patient });
-              }
-              
-              return newPatients;
-            });
+            // Just log the event, no patient state management
             break;
 
           case 'patient_eligibility':
-            setPatients(prev => {
-              const newPatients = new Map(prev);
-              const patient = newPatients.get(data.patientId);
-              
-              if (patient) {
-                let status: 'eligible' | 'excluded' | 'requires_followup' = 'excluded';
-                
-                if (data.eligibility === 'ELIGIBLE') {
-                  status = 'eligible';
-                  setEligibleCount(c => c + 1);
-                } else if (data.eligibility === 'REQUIRES_FOLLOW_UP') {
-                  status = 'requires_followup';
-                } else {
-                  setExcludedCount(c => c + 1);
-                }
-
-                patient.status = status;
-                newPatients.set(data.patientId, { ...patient });
-              }
-              
-              setProcessedPatients(c => c + 1);
-              return newPatients;
-            });
+            // Update aggregate counts
+            if (data.eligibility === 'ELIGIBLE') {
+              setEligibleCount(c => c + 1);
+            } else if (data.eligibility !== 'REQUIRES_FOLLOW_UP') {
+              setExcludedCount(c => c + 1);
+            }
+            setProcessedPatients(c => c + 1);
             break;
 
           case 'complete':
@@ -324,9 +243,6 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
           status: agent2Status,
           sseEvents,
         }}
-        patients={patients}
-        inclusionCount={inclusionCount}
-        exclusionCount={exclusionCount}
         onAgent1Complete={handleAgent1Complete}
       />
     </div>

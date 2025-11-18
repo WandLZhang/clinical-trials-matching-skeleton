@@ -26,6 +26,8 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
   const [jsonResponse, setJsonResponse] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const logsEndRef = React.useRef<HTMLDivElement>(null);
+  const hasInitializedRef = React.useRef(false);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   const addLog = (type: LogEntry['type'], message: string) => {
     const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
@@ -50,8 +52,18 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
   }, [logs]);
 
   useEffect(() => {
+    // Prevent duplicate initialization in StrictMode
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     let isMounted = true;
     const abortController = new AbortController();
+    abortControllerRef.current = abortController;
     
     const fetchTrialData = async () => {
       if (!isMounted) return;
