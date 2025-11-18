@@ -1,6 +1,40 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ClinicalTrialsFlowDiagram } from './ClinicalTrialsFlowDiagram';
 import './AgentTransitionFlow.css';
+
+// Data structure interfaces
+interface PatientEvaluation {
+  criterionText: string;
+  criterionType: 'INCLUSION' | 'EXCLUSION';
+  criterionIndex: number;
+  result: 'PASS' | 'FAIL' | 'MISSING';
+  reasoning: string;
+  evidence: string;
+  filterType: 'SEMANTIC' | 'FHIR_DIRECT';
+  timestamp: string;
+}
+
+interface PatientData {
+  patientId: string;
+  eligibility?: 'ELIGIBLE' | 'EXCLUDED' | 'REQUIRES_FOLLOW_UP';
+  reason?: string;
+  evaluations: {
+    [criterionId: string]: PatientEvaluation;
+  };
+  processOrder: number;
+  startTime?: string;
+  endTime?: string;
+}
+
+interface PatientEvaluations {
+  [patientId: string]: PatientData;
+}
+
+interface FlowData {
+  patients: PatientEvaluations;
+  totalPatients: number;
+  processedCount: number;
+}
 
 interface AgentTransitionFlowProps {
   onComplete?: () => void;
@@ -15,9 +49,27 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
   const [excludedCount, setExcludedCount] = useState(0);
   const [sseEvents, setSseEvents] = useState<Array<{ timestamp: string; data: any }>>([]);
 
+  // New flow data structure
+  const [flowData, setFlowData] = useState<FlowData>({
+    patients: {},
+    totalPatients: 0,
+    processedCount: 0
+  });
+  
+  // Temporary storage for criteria text
+  const criteriaRef = useRef<{
+    [criterionId: string]: { text: string; type: 'INCLUSION' | 'EXCLUSION'; index: number }
+  }>({});
+
   // Use refs to track ongoing requests and prevent duplicates
   const agent1RequestRef = React.useRef<AbortController | null>(null);
   const agent2RequestRef = React.useRef<AbortController | null>(null);
+  
+  // Track patient processing order
+  const patientOrderRef = useRef(0);
+  
+  // Helper function to generate criterion ID
+  const getCriterionId = (type: string, index: number) => `${type}-${index}`;
 
   // Simulate Agent 1 data fetching with proper cleanup
   useEffect(() => {
@@ -104,6 +156,15 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
     setProcessedPatients(0);
     setEligibleCount(0);
     setExcludedCount(0);
+    
+    // Reset flow data
+    setFlowData({
+      patients: {},
+      totalPatients: 0,
+      processedCount: 0
+    });
+    patientOrderRef.current = 0;
+    criteriaRef.current = {};
 
     const startStreaming = async () => {
       try {
@@ -175,22 +236,153 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
 
         switch (data.status) {
           case 'layer1_start':
-            console.log(`[${timestamp}] Layer 1 starting...`);
             setAgent2Status('searching');
             break;
 
           case 'layer1_results':
-            console.log(`[${timestamp}] Layer 1 results: ${data.totalPatients} patients found`);
             setTotalPatients(data.totalPatients || 0);
             setAgent2Status('processing');
+            
+            // Store criteria in ref
+            if (data.inclusionCriteria) {
+              data.inclusionCriteria.forEach((criterion: string, index: number) => {
+                const criterionId = getCriterionId('INCLUSION', index);
+                criteriaRef.current[criterionId] = {
+                  text: criterion,
+                  type: 'INCLUSION',
+                  index
+                };
+              });
+            }
+            
+            if (data.exclusionCriteria) {
+              data.exclusionCriteria.forEach((criterion: string, index: number) => {
+                const criterionId = getCriterionId('EXCLUSION', index);
+                criteriaRef.current[criterionId] = {
+                  text: criterion,
+                  type: 'EXCLUSION',
+                  index
+                };
+              });
+            }
+            
+            // Create fully hydrated structure with all patients and all criteria
+            const hydratedFlowData: FlowData = {
+              patients: {},
+              totalPatients: data.totalPatients || 0,
+              processedCount: 0
+            };
+            
+            // Pre-populate all patients with all criteria
+            if (data.patientIds) {
+              data.patientIds.forEach((patientId: string) => {
+                hydratedFlowData.patients[patientId] = {
+                  patientId,
+                  evaluations: {},
+                  processOrder: 0, // Will be set when processing starts
+                  startTime: undefined,
+                  endTime: undefined,
+                  eligibility: undefined,
+                  reason: undefined
+                };
+                
+                // Add all inclusion criteria with null values
+                data.inclusionCriteria?.forEach((text: string, index: number) => {
+                  const criterionId = getCriterionId('INCLUSION', index);
+                  hydratedFlowData.patients[patientId].evaluations[criterionId] = {
+                    criterionText: text,
+                    criterionType: 'INCLUSION',
+                    criterionIndex: index,
+                    result: null as any,
+                    reasoning: null as any,
+                    evidence: null as any,
+                    filterType: null as any,
+                    timestamp: null as any
+                  };
+                });
+                
+                // Add all exclusion criteria with null values
+                data.exclusionCriteria?.forEach((text: string, index: number) => {
+                  const criterionId = getCriterionId('EXCLUSION', index);
+                  hydratedFlowData.patients[patientId].evaluations[criterionId] = {
+                    criterionText: text,
+                    criterionType: 'EXCLUSION',
+                    criterionIndex: index,
+                    result: null as any,
+                    reasoning: null as any,
+                    evidence: null as any,
+                    filterType: null as any,
+                    timestamp: null as any
+                  };
+                });
+              });
+            }
+            
+            // Log the master data structure - use JSON.stringify for automatic expansion
+            console.log('[Master Data Structure - layer1_results]');
+            console.log(JSON.stringify({
+              timestamp: new Date().toISOString(),
+              flowData: hydratedFlowData,
+              rawEvent: data
+            }, null, 2));
+            
+            setFlowData(hydratedFlowData);
             break;
 
           case 'processing_patient':
-            // Just log the event, no patient state management
+            setFlowData(prev => {
+              const patientId = data.patientId;
+              const updatedFlowData = JSON.parse(JSON.stringify(prev)); // Deep clone
+              
+              if (updatedFlowData.patients[patientId]) {
+                updatedFlowData.patients[patientId].processOrder = ++patientOrderRef.current;
+                updatedFlowData.patients[patientId].startTime = timestamp;
+              }
+              
+              // Log the master data structure
+              console.log('[Master Data Structure - processing_patient]');
+              console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                patientId: patientId,
+                flowData: updatedFlowData,
+                rawEvent: data
+              }, null, 2));
+              
+              return updatedFlowData;
+            });
             break;
 
           case 'filter_result':
-            // Just log the event, no patient state management
+            setFlowData(prev => {
+              const patientId = data.patient_id;
+              const criterionId = getCriterionId(data.criterion_type, data.criterion_index);
+              const updatedFlowData = JSON.parse(JSON.stringify(prev)); // Deep clone
+              
+              // Update the specific criterion evaluation
+              if (updatedFlowData.patients[patientId] && 
+                  updatedFlowData.patients[patientId].evaluations[criterionId]) {
+                updatedFlowData.patients[patientId].evaluations[criterionId] = {
+                  ...updatedFlowData.patients[patientId].evaluations[criterionId],
+                  result: data.result,
+                  reasoning: data.message || data.reasoning || '',
+                  evidence: data.evidence || '',
+                  filterType: data.filter_type,
+                  timestamp
+                };
+              }
+              
+              // Log the master data structure
+              console.log('[Master Data Structure - filter_result]');
+              console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                patientId: patientId,
+                criterionUpdated: criterionId,
+                flowData: updatedFlowData,
+                rawEvent: data
+              }, null, 2));
+              
+              return updatedFlowData;
+            });
             break;
 
           case 'patient_eligibility':
@@ -201,11 +393,54 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
               setExcludedCount(c => c + 1);
             }
             setProcessedPatients(c => c + 1);
+            
+            setFlowData(prev => {
+              const patientId = data.patientId;
+              const updatedFlowData = JSON.parse(JSON.stringify(prev)); // Deep clone
+              
+              if (updatedFlowData.patients[patientId]) {
+                updatedFlowData.patients[patientId].eligibility = data.eligibility;
+                updatedFlowData.patients[patientId].reason = data.reason;
+                updatedFlowData.patients[patientId].endTime = timestamp;
+                updatedFlowData.processedCount++;
+              }
+              
+              // Log the master data structure
+              console.log('[Master Data Structure - patient_eligibility]');
+              console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                patientId: patientId,
+                eligibility: data.eligibility,
+                flowData: updatedFlowData,
+                rawEvent: data
+              }, null, 2));
+              
+              return updatedFlowData;
+            });
             break;
 
           case 'complete':
             setAgent2Status('complete');
-            console.log('Patient matching complete:', data.summary);
+            
+            setFlowData(prev => {
+              // Log the final master data structure with summary
+              console.log('[Master Data Structure - complete]');
+              console.log(JSON.stringify({
+                timestamp: new Date().toISOString(),
+                summary: {
+                  totalPatients: prev.totalPatients,
+                  processedCount: prev.processedCount,
+                  eligible: data.summary?.eligiblePatients?.length || 0,
+                  excluded: data.summary?.excludedPatients?.length || 0,
+                  requiresFollowUp: data.summary?.requiresFollowUpPatients?.length || 0
+                },
+                flowData: prev,
+                rawEvent: data
+              }, null, 2));
+              
+              return prev;
+            });
+            
             if (onComplete) {
               onComplete();
             }
