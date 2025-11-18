@@ -145,21 +145,27 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
                   // Pre-populate all inclusion and exclusion criteria in loading state
                   const initialCriteria: CriterionState[] = [];
                   
-                  // Add all inclusion criteria
-                  for (let i = 0; i < inclusionCount; i++) {
-                    initialCriteria.push({
-                      index: i,
-                      type: 'inclusion',
-                      status: 'loading'
+                  // Add all inclusion criteria with actual text
+                  if (data.inclusionCriteria && Array.isArray(data.inclusionCriteria)) {
+                    data.inclusionCriteria.forEach((criterion: string, idx: number) => {
+                      initialCriteria.push({
+                        index: idx,
+                        type: 'inclusion',
+                        status: 'loading',
+                        criterion: criterion
+                      });
                     });
                   }
                   
-                  // Add all exclusion criteria
-                  for (let i = 0; i < exclusionCount; i++) {
-                    initialCriteria.push({
-                      index: i,
-                      type: 'exclusion',
-                      status: 'loading'
+                  // Add all exclusion criteria with actual text
+                  if (data.exclusionCriteria && Array.isArray(data.exclusionCriteria)) {
+                    data.exclusionCriteria.forEach((criterion: string, idx: number) => {
+                      initialCriteria.push({
+                        index: idx,
+                        type: 'exclusion',
+                        status: 'loading',
+                        criterion: criterion
+                      });
                     });
                   }
                   
@@ -242,7 +248,7 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
             break;
 
           case 'patient_eligibility':
-            // Update patient overall status
+            // Update patient overall status and populate ALL criteria from patient_result.filters
             setPatients(prev => {
               const newPatients = new Map(prev);
               const patient = newPatients.get(data.patientId);
@@ -258,11 +264,47 @@ export const OrchestratorFlow: React.FC<OrchestratorFlowProps> = ({
                 } else {
                   setExcludedCount(c => c + 1);
                 }
-
-                patient.status = status;
-                patient.followUpItems = data.patient_result?.follow_up_items || [];
-                patient.reasonType = data.reason_type;
-                newPatients.set(data.patientId, { ...patient });
+                
+                // Extract ALL criteria from patient_result.filters array
+                const allCriteria: CriterionState[] = [];
+                if (data.patient_result?.filters && Array.isArray(data.patient_result.filters)) {
+                  data.patient_result.filters.forEach((filter: any) => {
+                    const criteriaType = filter.criterion_type === 'INCLUSION' ? 'inclusion' : 'exclusion';
+                    const criterionIndex = filter.criterion_index;
+                    
+                    // Map result to status
+                    let criterionStatus: 'pass' | 'fail' | 'unclear' = 'unclear';
+                    if (filter.result === 'PASS' || filter.result === 'MET') {
+                      criterionStatus = 'pass';
+                    } else if (filter.result === 'FAIL' || filter.result === 'VIOLATED' || filter.result === 'NOT_MET') {
+                      criterionStatus = 'fail';
+                    } else if (filter.result === 'MISSING' || filter.result === 'UNCLEAR') {
+                      criterionStatus = 'unclear';
+                    }
+                    
+                    allCriteria.push({
+                      index: criterionIndex,
+                      type: criteriaType,
+                      status: criterionStatus,
+                      criterion: filter.criterion,
+                      evidence: filter.evidence,
+                      reasoning: filter.reasoning,
+                      filter_type: filter.filter_type,
+                      field: filter.field
+                    });
+                  });
+                }
+                
+                // Create a completely new patient object for proper React state update
+                const updatedPatient: PatientState = {
+                  patientId: data.patientId,
+                  status: status,
+                  criteria: allCriteria,
+                  followUpItems: data.patient_result?.follow_up_items || [],
+                  reasonType: data.reason_type
+                };
+                
+                newPatients.set(data.patientId, updatedPatient);
               }
               
               setProcessedPatients(c => c + 1);

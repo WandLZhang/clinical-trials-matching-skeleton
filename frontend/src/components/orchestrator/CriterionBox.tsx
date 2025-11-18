@@ -87,17 +87,92 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
     }
   };
 
-  // Truncate evidence for display
-  const truncateText = (text: string | undefined, maxLength: number = 50) => {
-    if (!text) return '';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-  };
-
   const tooltipContent = (
-    <div>
-      <p><strong>Criterion:</strong> {criterion}</p>
-      <p><strong>Evidence:</strong> {evidence}</p>
-      <p><strong>Reasoning:</strong> {reasoning}</p>
+    <div style={{ maxWidth: '500px', fontSize: '12px', lineHeight: '1.5' }}>
+      <div style={{ marginBottom: '12px' }}>
+        <div style={{ fontWeight: 'bold', color: '#1976D2', marginBottom: '4px' }}>
+          {type === 'inclusion' ? 'INCLUSION' : 'EXCLUSION'} Criterion #{index + 1}
+        </div>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#333' }}>
+          {criterion || 'Loading...'}
+        </div>
+      </div>
+      
+      {filterType && (
+        <div style={{ marginBottom: '8px' }}>
+          <span style={{ 
+            fontWeight: 'bold', 
+            color: filterType === 'FHIR_DIRECT' ? '#2196F3' : '#9C27B0',
+            marginRight: '4px'
+          }}>
+            Filter Type:
+          </span>
+          <span>{filterType === 'FHIR_DIRECT' ? '🔍 FHIR Direct' : '🤖 Semantic (AI)'}</span>
+        </div>
+      )}
+      
+      {field && (
+        <div style={{ marginBottom: '8px' }}>
+          <span style={{ fontWeight: 'bold', marginRight: '4px' }}>Field:</span>
+          <code style={{ 
+            backgroundColor: '#f5f5f5', 
+            padding: '2px 6px', 
+            borderRadius: '3px',
+            fontSize: '11px'
+          }}>
+            {field}
+          </code>
+        </div>
+      )}
+      
+      {evidence && (
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Evidence:</div>
+          <div style={{ 
+            backgroundColor: '#f9f9f9', 
+            padding: '6px 8px', 
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}>
+            {evidence}
+          </div>
+        </div>
+      )}
+      
+      {reasoning && (
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Reasoning:</div>
+          <div style={{ 
+            backgroundColor: '#f0f7ff', 
+            padding: '6px 8px', 
+            borderRadius: '4px',
+            fontSize: '11px',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word'
+          }}>
+            {reasoning}
+          </div>
+        </div>
+      )}
+      
+      <div style={{ 
+        marginTop: '10px', 
+        paddingTop: '8px', 
+        borderTop: '1px solid #e0e0e0',
+        fontSize: '11px',
+        color: '#666'
+      }}>
+        <span style={{ fontWeight: 'bold', marginRight: '4px' }}>Result:</span>
+        <span style={{ 
+          color: status === 'pass' ? '#2E7D32' : status === 'fail' ? '#C62828' : '#F57C00',
+          fontWeight: 'bold'
+        }}>
+          {status === 'pass' ? '✓ PASS' : status === 'fail' ? '✗ FAIL' : '? UNCLEAR/MISSING'}
+        </span>
+      </div>
     </div>
   );
 
@@ -107,22 +182,22 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          padding: '6px 12px',
+          gap: '6px',
+          padding: '4px 8px',
           backgroundColor: getBackgroundColor(),
           border: `1px solid ${getBorderColor()}`,
           borderRadius: '4px',
-          fontSize: '11px',
-          minHeight: '32px',
+          fontSize: '10px',
+          minHeight: '24px',
           fontFamily: 'monospace',
           cursor: 'pointer'
         }}
       >
         <span style={{ 
-          fontSize: '14px',
+          fontSize: '12px',
         fontWeight: 'bold',
         color: getTextColor(),
-        minWidth: '16px'
+        minWidth: '14px'
       }}>
         {getStatusIcon()}
       </span>
@@ -131,12 +206,12 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
         <span style={{ 
           backgroundColor: filterType === 'FHIR_DIRECT' ? '#2196F3' : '#9C27B0',
           color: 'white',
-          padding: '2px 6px',
+          padding: '1px 4px',
           borderRadius: '3px',
-          fontSize: '9px',
+          fontSize: '8px',
           fontWeight: 600
         }}>
-          {filterType === 'FHIR_DIRECT' ? '🔍 FHIR' : '🤖 LLM'}
+          {filterType === 'FHIR_DIRECT' ? '🔍' : '🤖'}
         </span>
       )}
       
@@ -144,7 +219,7 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
         <span style={{ 
           color: '#1976D2',
           fontWeight: 600,
-          fontSize: '10px'
+          fontSize: '9px'
         }}>
           {field}
         </span>
@@ -159,20 +234,6 @@ export const CriterionBox: React.FC<CriterionBoxProps> = ({
       }}>
         {criterion || `Criterion ${index + 1}`}
       </span>
-      
-      {evidence && status !== 'loading' && (
-        <span style={{ 
-          color: '#666',
-          fontSize: '10px',
-          fontStyle: 'italic',
-          maxWidth: '200px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}>
-          {truncateText(evidence, 40)}
-        </span>
-      )}
       </div>
     </TooltipWrapper>
   );

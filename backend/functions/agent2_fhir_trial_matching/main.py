@@ -96,7 +96,9 @@ def fhir_trial_matching(request):
                 yield stream_event('layer1_results', f'Found {total_resources} FHIR resources, {len(patient_ids)} unique patients', {
                     'totalResources': total_resources,
                     'totalPatients': len(patient_ids),
-                    'patientIds': patient_ids
+                    'patientIds': patient_ids,
+                    'inclusionCriteria': inclusion,
+                    'exclusionCriteria': exclusion
                 })
                 
                 # LAYER 2 & 3: Process ALL patients in parallel!

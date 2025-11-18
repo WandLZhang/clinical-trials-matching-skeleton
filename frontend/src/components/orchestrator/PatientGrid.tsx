@@ -35,42 +35,54 @@ export const PatientGrid: React.FC<PatientGridProps> = ({
 }) => {
   const patientArray = Array.from(patients.values());
 
+  // Separate patients that need follow-up
+  const standardPatients = patientArray.filter(p => p.status !== 'requires_followup');
+  const followupPatients = patientArray.filter(p => p.status === 'requires_followup');
+
   return (
-    <div className="patient-grid">
-      {patientArray.map((patient) => (
-        <div key={patient.patientId} style={{ marginBottom: '16px' }}>
-          {/* Patient box and follow-up box in horizontal layout */}
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1 }}>
-              <PatientBox
-                patientId={patient.patientId}
-                status={patient.status}
-                criteria={patient.criteria}
-                inclusionCount={inclusionCount}
-                exclusionCount={exclusionCount}
-              />
-            </div>
-            
-            {/* Show follow-up box if patient requires follow-up and has items */}
-            {patient.status === 'requires_followup' && patient.followUpItems && patient.followUpItems.length > 0 && (
-              <>
-                <div style={{ 
-                  fontSize: '24px', 
-                  color: '#FF9800',
-                  alignSelf: 'center',
-                  marginTop: '40px'
-                }}>
-                  →
-                </div>
-                <FollowUpBox
+    <div>
+      {/* Grid for standard patients */}
+      <div className="patient-grid" style={{ marginBottom: '24px' }}>
+        {standardPatients.map((patient) => (
+          <PatientBox
+            key={patient.patientId}
+            patientId={patient.patientId}
+            status={patient.status}
+            criteria={patient.criteria}
+            inclusionCount={inclusionCount}
+            exclusionCount={exclusionCount}
+          />
+        ))}
+      </div>
+
+      {/* Separate section for patients requiring follow-up */}
+      {followupPatients.length > 0 && (
+        <div>
+          <h3 style={{ paddingLeft: '8px', color: '#FF9800' }}>Requires Follow-up</h3>
+          {followupPatients.map((patient) => (
+            <div key={patient.patientId} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div style={{ flex: 1 }}>
+                <PatientBox
                   patientId={patient.patientId}
-                  followUpItems={patient.followUpItems}
+                  status={patient.status}
+                  criteria={patient.criteria}
+                  inclusionCount={inclusionCount}
+                  exclusionCount={exclusionCount}
                 />
-              </>
-            )}
-          </div>
+              </div>
+              {patient.followUpItems && patient.followUpItems.length > 0 && (
+                <>
+                  <div style={{ fontSize: '24px', color: '#FF9800', alignSelf: 'center', marginTop: '40px' }}>→</div>
+                  <FollowUpBox
+                    patientId={patient.patientId}
+                    followUpItems={patient.followUpItems}
+                  />
+                </>
+              )}
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 };
