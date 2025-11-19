@@ -7,7 +7,7 @@ interface PatientEvaluation {
   criterionText: string;
   criterionType: 'INCLUSION' | 'EXCLUSION';
   criterionIndex: number;
-  result: 'PASS' | 'FAIL' | 'MISSING';
+  result: 'PASS' | 'FAIL' | 'MISSING' | 'UNCLEAR' | null;
   reasoning: string;
   evidence: string;
   filterType: 'SEMANTIC' | 'FHIR_DIRECT';
@@ -43,11 +43,13 @@ interface AgentTransitionFlowProps {
 export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComplete }) => {
   const [trialData, setTrialData] = useState<any>(null);
   const [agent2Status, setAgent2Status] = useState<'searching' | 'processing' | 'complete'>('searching');
+  const [agent4Status, setAgent4Status] = useState<'waiting' | 'processing' | 'complete'>('waiting');
   const [totalPatients, setTotalPatients] = useState(0);
   const [processedPatients, setProcessedPatients] = useState(0);
   const [eligibleCount, setEligibleCount] = useState(0);
   const [excludedCount, setExcludedCount] = useState(0);
   const [sseEvents, setSseEvents] = useState<Array<{ timestamp: string; data: any }>>([]);
+  const [agent4Events, setAgent4Events] = useState<Array<{ timestamp: string; data: any }>>([]);
 
   // New flow data structure
   const [flowData, setFlowData] = useState<FlowData>({
@@ -63,6 +65,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
 
   // Use refs to track ongoing requests and prevent duplicates
   const agent2RequestRef = React.useRef<AbortController | null>(null);
+  const agent4RequestRef = React.useRef<AbortController | null>(null);
   
   // Track patient processing order
   const patientOrderRef = useRef(0);
@@ -92,7 +95,9 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
 
     // Reset state for new streaming session
     setAgent2Status('searching');
+    setAgent4Status('waiting');
     setSseEvents([]);
+    setAgent4Events([]);
     setTotalPatients(0);
     setProcessedPatients(0);
     setEligibleCount(0);
@@ -362,6 +367,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
 
           case 'complete':
             setAgent2Status('complete');
+            setAgent4Status('processing'); // Start Agent 4 processing visualization when Agent 2 completes
             
             setFlowData(prev => {
               // Log the final master data structure with summary
@@ -403,6 +409,128 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
     };
   }, [trialData, onComplete]);
 
+  // Start Agent 4 when Agent 2 completes (and status changes to processing)
+  useEffect(() => {
+    if (agent4Status !== 'processing' || !flowData || !trialData) return;
+
+    // Cancel any previous Agent 4 request
+    if (agent4RequestRef.current) {
+      agent4RequestRef.current.abort();
+    }
+
+    const apiUrl = import.meta.env.VITE_API_AGENT4_URL;
+    
+    if (!apiUrl) {
+      console.error('Agent 4 API URL not configured');
+      return;
+    }
+
+    const abortController = new AbortController();
+    agent4RequestRef.current = abortController;
+    
+    setAgent4Events([]);
+
+    const startStreaming = async () => {
+      try {
+        // Filter eligible patients
+        const eligiblePatients = Object.values(flowData.patients).filter(
+          p => p.eligibility === 'ELIGIBLE'
+        );
+
+        if (eligiblePatients.length === 0) {
+          setAgent4Status('complete');
+          return;
+        }
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            eligiblePatients,
+            trialInfo: trialData
+          }),
+          signal: abortController.signal
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+
+        if (!reader) {
+          throw new Error('No response body');
+        }
+
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('Agent 4 Stream complete');
+            break;
+          }
+
+          const chunk = decoder.decode(value, { stream: true });
+          buffer += chunk;
+          
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const eventData = line.substring(6);
+              processEvent(eventData);
+            }
+          }
+        }
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.log('Agent 4 Stream aborted');
+        } else {
+          console.error('Agent 4 Streaming error:', error);
+        }
+      }
+    };
+
+    const processEvent = (eventData: string) => {
+      try {
+        const data = JSON.parse(eventData);
+        const now = new Date();
+        const timestamp = `${now.toLocaleTimeString('en-US', { hour12: false })}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+        console.log(`[${timestamp}] Agent 4 SSE Event:`, data);
+
+        setAgent4Events(prev => [...prev, { timestamp, data }]);
+
+        switch (data.status) {
+          case 'complete':
+            setAgent4Status('complete');
+            // Handle download URL if provided
+            if (data.downloadUrl) {
+               // Maybe show a download button or auto-download?
+               console.log('Download URL:', data.downloadUrl);
+            }
+            break;
+          case 'error':
+            console.error('Agent 4 Error:', data.message);
+            break;
+        }
+      } catch (error) {
+        console.error('Error parsing Agent 4 SSE event:', error);
+      }
+    };
+
+    startStreaming();
+
+    return () => {
+      abortController.abort();
+    };
+  }, [agent4Status, flowData, trialData]);
+
   const handleAgent1Complete = (data: any) => {
     setTrialData(data);
   };
@@ -418,6 +546,10 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
           excludedCount,
           status: agent2Status,
           sseEvents,
+        }}
+        agent4Data={{
+          status: agent4Status,
+          sseEvents: agent4Events,
         }}
         flowData={flowData}
         onAgent1Complete={handleAgent1Complete}

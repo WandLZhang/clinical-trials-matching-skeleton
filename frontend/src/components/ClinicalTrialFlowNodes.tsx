@@ -2,6 +2,7 @@ import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { Agent1 } from './Agent1';
 import { Agent2Box } from './orchestrator/Agent2Box';
+import { Agent4Box } from './orchestrator/Agent4Box';
 import { PatientNode } from './PatientNode';
 import './PatientNode.css';
 
@@ -16,6 +17,11 @@ interface Agent2WrapperNodeData {
   eligibleCount: number;
   excludedCount: number;
   status: 'searching' | 'processing' | 'complete';
+  sseEvents?: Array<{ timestamp: string; data: any }>;
+}
+
+interface Agent4WrapperNodeData {
+  status: 'waiting' | 'processing' | 'complete';
   sseEvents?: Array<{ timestamp: string; data: any }>;
 }
 
@@ -37,6 +43,18 @@ export const Agent2WrapperNode: React.FC<{ data: Agent2WrapperNodeData }> = ({ d
       <Handle type="target" position={Position.Left} id="target-left" />
       <Handle type="source" position={Position.Right} id="source-right" />
       <Agent2Box
+        status={data.status}
+        sseEvents={data.sseEvents || []}
+      />
+    </div>
+  );
+};
+
+export const Agent4WrapperNode: React.FC<{ data: Agent4WrapperNodeData }> = ({ data }) => {
+  return (
+    <div style={{ position: 'relative' }}>
+      <Handle type="target" position={Position.Left} id="target-left" />
+      <Agent4Box
         status={data.status}
         sseEvents={data.sseEvents || []}
       />

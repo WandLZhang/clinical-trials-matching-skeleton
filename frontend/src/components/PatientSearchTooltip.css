@@ -1,0 +1,90 @@
+.patient-search-tooltip {
+  padding: 8px;
+  width: 300px;
+  font-family: sans-serif;
+}
+
+.search-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: #eee;
+}
+
+.patient-id-label {
+  font-family: monospace;
+  font-size: 10px;
+  color: #aaa;
+  background: #333;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.search-form {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #222;
+  color: #fff;
+  font-size: 12px;
+}
+
+.search-button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #555;
+  background: #333;
+  color: #fff;
+  cursor: pointer;
+}
+
+.search-button:hover {
+  background: #444;
+}
+
+.search-results {
+  max-height: 200px;
+  overflow-y: auto;
+  border-top: 1px solid #444;
+  padding-top: 8px;
+}
+
+.loading-indicator, .no-results, .error-message {
+  font-size: 11px;
+  color: #aaa;
+  text-align: center;
+  padding: 8px;
+}
+
+.error-message {
+  color: #ff6b6b;
+}
+
+.search-result-item {
+  margin-bottom: 8px;
+  padding: 6px;
+  background: #333;
+  border-radius: 4px;
+}
+
+.result-type {
+  font-size: 10px;
+  font-weight: bold;
+  color: #4fc3f7;
+  margin-bottom: 2px;
+}
+
+.result-content {
+  font-size: 11px;
+  color: #ddd;
+  word-break: break-word;
+}

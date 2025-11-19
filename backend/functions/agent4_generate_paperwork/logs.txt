@@ -1,0 +1,17 @@
+
+[notice] A new release of pip is available: 25.1.1 -> 25.3
+[notice] To update, run: pip install --upgrade pip
+ERROR: Could not open requirements file: [Errno 2] No such file or directory: 'requirements.txt'
+Starting Agent 4 (Paperwork Generation) on port 8084...
+INFO:root:Agent 4 initialized for project 'wz-clinical-trials-skeleton'
+ * Serving Flask app 'generate_paperwork'
+ * Debug mode: on
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8084
+ * Running on http://192.168.1.95:8084
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug: * Restarting with watchdog (fsevents)
+INFO:root:Agent 4 initialized for project 'wz-clinical-trials-skeleton'
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 119-368-349

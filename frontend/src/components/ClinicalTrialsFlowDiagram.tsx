@@ -11,11 +11,12 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Agent1WrapperNode, Agent2WrapperNode, PatientNode } from './ClinicalTrialFlowNodes';
+import { Agent1WrapperNode, Agent2WrapperNode, Agent4WrapperNode, PatientNode } from './ClinicalTrialFlowNodes';
 
 const nodeTypes = {
   agent1: Agent1WrapperNode,
   agent2: Agent2WrapperNode,
+  agent4: Agent4WrapperNode,
   patient: PatientNode,
 };
 
@@ -23,6 +24,7 @@ const nodeTypes = {
 const AGENT1_X = 100;
 const AGENT2_X = 800;  // Reduced from 1400 to bring nodes closer
 const PATIENT_X = 1600;  // Position for patient nodes
+const AGENT4_X = 2100; // Position for Agent 4 (Closer to patients)
 const PATIENT_Y_START = 200;
 const PATIENT_Y_SPACING = 80;
 
@@ -34,6 +36,10 @@ interface ClinicalTrialsFlowDiagramProps {
     eligibleCount?: number;
     excludedCount?: number;
     status?: 'searching' | 'processing' | 'complete';
+    sseEvents?: Array<{ timestamp: string; data: any }>;
+  };
+  agent4Data?: {
+    status: 'waiting' | 'processing' | 'complete';
     sseEvents?: Array<{ timestamp: string; data: any }>;
   };
   flowData?: {
@@ -53,6 +59,7 @@ interface ClinicalTrialsFlowDiagramProps {
 const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> = ({
   agent1Data,
   agent2Data = {},
+  agent4Data = { status: 'waiting', sseEvents: [] },
   flowData,
   onAgent1Complete,
 }) => {
@@ -265,6 +272,89 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
       })
     );
   }, [flowData, setNodes, setEdges, setViewport]);
+
+  // Add Agent4 node and edges when Agent2 completes
+  useEffect(() => {
+    if (agent2Data.status !== 'complete') return;
+
+    setNodes((nds) => {
+      const hasAgent4 = nds.some((n) => n.id === 'agent4');
+      if (hasAgent4) return nds;
+
+      const agent4Node: Node = {
+        id: 'agent4',
+        type: 'agent4',
+        position: { x: AGENT4_X, y: 200 },
+        data: {
+          status: agent4Data.status || 'waiting',
+          sseEvents: agent4Data.sseEvents || [],
+        },
+        draggable: false,
+      };
+
+      return [...nds, agent4Node];
+    });
+
+    // Add edges from all processed patients to Agent 4
+    if (flowData && flowData.patients) {
+      const patientIds = Object.keys(flowData.patients);
+      const newEdges: Edge[] = [];
+      
+      patientIds.forEach(patientId => {
+        const edgeId = `edge-patient-${patientId}-agent4`;
+        // Only add edge if patient is processed
+        if (flowData.patients[patientId].endTime) {
+          newEdges.push({
+            id: edgeId,
+            source: `patient-${patientId}`,
+            target: 'agent4',
+            sourceHandle: 'source-right',
+            targetHandle: 'target-left',
+            animated: true,
+            style: { strokeWidth: 1, stroke: '#4CAF50', opacity: 0.5 },
+            markerEnd: { type: MarkerType.ArrowClosed },
+          });
+        }
+      });
+
+      setEdges(eds => {
+        const existingEdgeIds = new Set(eds.map(e => e.id));
+        const uniqueNewEdges = newEdges.filter(e => !existingEdgeIds.has(e.id));
+        return [...eds, ...uniqueNewEdges];
+      });
+    }
+
+    // Pan viewport to show Agent4 but keep some criteria boxes visible
+    setTimeout(() => {
+      setViewport(
+        {
+          x: -AGENT4_X + 700, // Adjusted to show context to the left of Agent 4
+          y: -50,
+          zoom: 0.8,
+        },
+        { duration: 1200 }
+      );
+    }, 1000);
+
+  }, [agent2Data.status, flowData, agent4Data, setNodes, setEdges, setViewport]);
+
+  // Update Agent4 data
+  useEffect(() => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === 'agent4') {
+          return {
+            ...node,
+            data: {
+              status: agent4Data.status || 'waiting',
+              sseEvents: agent4Data.sseEvents || [],
+            },
+          };
+        }
+        return node;
+      })
+    );
+  }, [agent4Data, setNodes]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>
