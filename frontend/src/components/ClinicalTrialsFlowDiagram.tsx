@@ -42,6 +42,7 @@ interface ClinicalTrialsFlowDiagramProps {
         patientId: string;
         eligibility?: 'ELIGIBLE' | 'EXCLUDED' | 'REQUIRES_FOLLOW_UP';
         endTime?: string;
+        evaluations?: any;
       };
     };
     totalPatients: number;
@@ -207,6 +208,7 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
             patientId: patientId,
             eligibility: patient.eligibility,
             isProcessing: !patient.endTime,
+            evaluations: patient.evaluations,
           },
           draggable: false,
         });
@@ -254,6 +256,7 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
                 patientId: patientId,
                 eligibility: patient.eligibility,
                 isProcessing: !patient.endTime,
+                evaluations: patient.evaluations,
               },
             };
           }
