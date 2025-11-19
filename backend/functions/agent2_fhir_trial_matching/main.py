@@ -234,6 +234,12 @@ def process_single_patient(idx, patient_id, search_results, inclusion_criteria, 
     # Get patient FHIR bundle
     patient_bundle = get_patient_fhir_bundle(patient_id, search_results)
     
+    # Log bundle size
+    bundle_json = json.dumps(patient_bundle)
+    bundle_size_mb = len(bundle_json) / (1024 * 1024)
+    print(f"Patient {patient_id} bundle size: {len(bundle_json)} chars ({bundle_size_mb:.2f} MB). Approx tokens: {len(bundle_json)//4}")
+    logging.info(f"Patient {patient_id} bundle size: {len(bundle_json)} chars ({bundle_size_mb:.2f} MB). Approx tokens: {len(bundle_json)//4}")
+    
     # Apply all filters (criteria evaluated in parallel via workers)
     filter_results = apply_all_filters(patient_id, patient_bundle, inclusion_criteria, exclusion_criteria)
     
@@ -603,10 +609,9 @@ def extract_unique_patients(results):
 
 
 def get_patient_fhir_bundle(patient_id, search_results):
-    """Get complete patient FHIR bundle from FHIR store + search results"""
+    """Get complete patient FHIR bundle by querying FHIR store for ALL relevant resources"""
     bundle = []
     
-    # 1. Fetch Patient resource from FHIR store (has birthDate, demographics)
     try:
         from google.auth import default
         from google.auth.transport.requests import Request
@@ -615,12 +620,12 @@ def get_patient_fhir_bundle(patient_id, search_results):
         credentials, project = default()
         credentials.refresh(Request())
         
-        patient_url = f"https://healthcare.googleapis.com/v1/projects/{os.environ.get('GOOGLE_CLOUD_PROJECT', 'wz-clinical-trials-skeleton')}/locations/us-central1/datasets/clinical-trials-data/fhirStores/fhir-store-r4/fhir/Patient/{patient_id}"
+        base_url = f"https://healthcare.googleapis.com/v1/projects/{os.environ.get('GOOGLE_CLOUD_PROJECT', 'wz-clinical-trials-skeleton')}/locations/us-central1/datasets/clinical-trials-data/fhirStores/fhir-store-r4/fhir"
+        headers = {"Authorization": f"Bearer {credentials.token}"}
         
-        response = req.get(
-            patient_url,
-            headers={"Authorization": f"Bearer {credentials.token}"}
-        )
+        # 1. Fetch Patient resource
+        patient_url = f"{base_url}/Patient/{patient_id}"
+        response = req.get(patient_url, headers=headers)
         
         if response.ok:
             patient_resource = response.json()
@@ -628,28 +633,32 @@ def get_patient_fhir_bundle(patient_id, search_results):
             logging.info(f"Fetched Patient resource for {patient_id}")
         else:
             logging.warning(f"Could not fetch Patient resource: {response.text}")
-    except Exception as e:
-        logging.exception(f"Error fetching Patient resource: {e}")
-    
-    # 2. Add resources from search results (Conditions, Observations, etc.)
-    for result in search_results:
-        struct_data = result.get('document', {}).get('structData', {})
+            
+        # 2. Fetch comprehensive clinical history (Conditions, Observations, Procedures, etc.)
+        # This ensures we don't miss data that wasn't in the initial search results
+        resource_types = ['Condition', 'Observation', 'Procedure', 'MedicationRequest', 'Device']
         
-        if struct_data.get('patient_id') == patient_id:
-            # Extract the FHIR resource
-            for resource_type in ['Condition', 'Observation', 'Procedure']:
-                if resource_type in struct_data:
-                    resource = struct_data[resource_type].copy()
-                    resource['resourceType'] = resource_type
-                    bundle.append(resource)
-        else:
-            # Check if resource references this patient
-            for resource_type in ['Condition', 'Observation', 'Procedure']:
-                resource = struct_data.get(resource_type, {})
-                subject = resource.get('subject', {})
-                if subject.get('reference') == f'Patient/{patient_id}':
-                    resource_copy = resource.copy()
-                    resource_copy['resourceType'] = resource_type
-                    bundle.append(resource_copy)
+        for resource_type in resource_types:
+            try:
+                # FHIR Search: GET [base]/[Type]?patient=Patient/[id]
+                search_url = f"{base_url}/{resource_type}?patient=Patient/{patient_id}"
+                response = req.get(search_url, headers=headers)
+                
+                if response.ok:
+                    search_bundle = response.json()
+                    if 'entry' in search_bundle:
+                        count = 0
+                        for entry in search_bundle['entry']:
+                            if 'resource' in entry:
+                                bundle.append(entry['resource'])
+                                count += 1
+                        logging.info(f"Fetched {count} {resource_type} resources for {patient_id}")
+                else:
+                    logging.warning(f"Failed to fetch {resource_type}: {response.text}")
+            except Exception as e:
+                logging.error(f"Error fetching {resource_type} for {patient_id}: {e}")
+                
+    except Exception as e:
+        logging.exception(f"Error constructing patient bundle: {e}")
     
     return bundle

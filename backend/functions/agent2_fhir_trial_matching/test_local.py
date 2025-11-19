@@ -121,15 +121,18 @@ def test_function_local(trial_data=None):
                             print(f"✓  {message}")
                             print(f"   Unique patients identified: {event_data.get('patientCount', 0)}\n")
                         
-                        elif status == 'patient_match':
-                            patient = event_data.get('patient', {})
-                            patient_matches.append(patient)
-                            idx = event_data.get('patientIndex', 0)
-                            patient_id = patient.get('patientId', 'Unknown')[:12]
-                            conditions = patient.get('conditions', [])
-                            print(f"   {idx}. Patient {patient_id}... - {len(conditions)} conditions")
-                            if conditions:
-                                print(f"      • {conditions[0].get('text', 'N/A')}")
+                        elif status == 'patient_eligibility':
+                            patient_id = event_data.get('patientId', 'Unknown')
+                            eligibility = event_data.get('eligibility', 'Unknown')
+                            reason = event_data.get('reason', '')
+                            patient_matches.append(event_data)
+                            
+                            # Determine symbol
+                            symbol = "✅" if eligibility == 'ELIGIBLE' else "❌" if eligibility == 'EXCLUDED' else "⚠️"
+                            
+                            print(f"   {symbol} Patient {patient_id[:12]}... : {eligibility}")
+                            if reason:
+                                print(f"      Reason: {reason[:100]}...")
                         
                         elif status == 'complete':
                             final_summary = event_data.get('summary', {})

@@ -16,6 +16,7 @@ pip install -r requirements.txt
 
 # Set environment variables
 export GOOGLE_CLOUD_PROJECT="wz-clinical-trials-skeleton"
+export MAX_PATIENTS=1
 
 echo ""
 echo "Starting function on port 8082..."
