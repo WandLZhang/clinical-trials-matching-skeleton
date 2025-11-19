@@ -1,10 +1,5 @@
 .agent-container {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #E3F2FD 0%, #F3E5F5 100%);
-  padding: 24px;
+  width: fit-content;
 }
 
 .agent-box {

@@ -20,7 +20,7 @@ export const PatientNode: React.FC<{ data: PatientNodeData }> = ({ data }) => {
   };
 
   const getBorderColor = () => {
-    if (data.isProcessing) return '#555';
+    if (data.isProcessing) return 'transparent';
     switch (data.eligibility) {
       case 'ELIGIBLE': return '#4CAF50';
       case 'EXCLUDED': return '#f44336';
