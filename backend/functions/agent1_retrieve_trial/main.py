@@ -67,92 +67,65 @@ def retrieve_trial_data(request):
         if not nct_id:
             return (jsonify({'error': 'Missing nctId field'}), 400, headers)
 
-        # Step 1: Fetch from ClinicalTrials.gov API v2
-        logging.info(f"Fetching trial data for {nct_id}...")
-        api_url = f"{CLINICALTRIALS_API_BASE}/studies/{nct_id}?format=json"
-        
-        response = requests.get(api_url, timeout=30)
-        
-        if not response.ok:
-            logging.error(f"ClinicalTrials.gov API error: {response.status_code}")
-            return (jsonify({
-                'error': f'ClinicalTrials.gov API error: {response.status_code}',
-                'details': response.text
-            }), 500, headers)
-        
-        data = response.json()
-        protocol = data.get('protocolSection', {})
-        
-        # Step 2: Extract basic information
-        identification = protocol.get('identificationModule', {})
-        conditions_module = protocol.get('conditionsModule', {})
-        status_module = protocol.get('statusModule', {})
-        eligibility_module = protocol.get('eligibilityModule', {})
-        arms_module = protocol.get('armsInterventionsModule', {})
-        contacts_module = protocol.get('contactsLocationsModule', {})
-        
-        trial_data = {
-            'nctId': identification.get('nctId', nct_id),
-            'title': identification.get('briefTitle', ''),
-            'officialTitle': identification.get('officialTitle', ''),
-            'conditions': conditions_module.get('conditions', []),
-            'status': status_module.get('overallStatus', 'UNKNOWN')
-        }
-        
-        # Step 3: Parse criteria using Gemini 2.5 Pro
-        raw_criteria = eligibility_module.get('eligibilityCriteria', '')
-        
-        if raw_criteria:
-            logging.info('Parsing eligibility criteria with Gemini...')
-            parsed_criteria = parse_criteria_with_gemini(raw_criteria)
-            trial_data['inclusion'] = parsed_criteria.get('inclusion', [])
-            trial_data['exclusion'] = parsed_criteria.get('exclusion', [])
-            trial_data['criteriaCount'] = len(trial_data['inclusion']) + len(trial_data['exclusion'])
-        else:
-            trial_data['inclusion'] = []
-            trial_data['exclusion'] = []
-            trial_data['criteriaCount'] = 0
-        
-        # Step 4: Extract interventions
-        interventions = arms_module.get('interventions', [])
-        trial_data['interventions'] = [
-            {
-                'type': i.get('type', ''),
-                'name': i.get('name', '')
-            }
-            for i in interventions
-        ]
-        
-        # Step 5: Extract contacts (if available)
-        central_contacts = contacts_module.get('centralContacts', [])
-        trial_data['contacts'] = [
-            {
-                'name': c.get('name', ''),
-                'role': c.get('role', ''),
-                'phone': c.get('phone', ''),
-                'email': c.get('email', '')
-            }
-            for c in central_contacts
-        ]
-        
-        logging.info(f"Successfully processed {nct_id}")
-        return (jsonify(trial_data), 200, headers)
-        
-    except requests.exceptions.Timeout:
-        logging.exception("Request timeout")
-        return (jsonify({'error': 'Request to ClinicalTrials.gov timed out'}), 504, headers)
-    except requests.exceptions.RequestException as e:
-        logging.exception(f"Request error: {str(e)}")
-        return (jsonify({'error': f'Request failed: {str(e)}'}), 500, headers)
-    except Exception as e:
-        logging.exception(f"Unexpected error: {str(e)}")
-        return (jsonify({'error': f'An internal server error occurred: {str(e)}'}), 500, headers)
+        def generate():
+            """Generator function for streaming response"""
+            try:
+                # Step 1: Notify start
+                yield json.dumps({"status": "info", "message": f"Fetching trial data for {nct_id}..."}) + "\n"
 
+                # Step 2: Fetch from ClinicalTrials.gov API v2
+                api_url = f"{CLINICALTRIALS_API_BASE}/studies/{nct_id}?format=json"
+                logging.info(f"Fetching from {api_url}")
+                
+                response = requests.get(api_url, timeout=30)
+                
+                if not response.ok:
+                    error_msg = f"ClinicalTrials.gov API error: {response.status_code}"
+                    logging.error(error_msg)
+                    yield json.dumps({"status": "error", "message": error_msg}) + "\n"
+                    return
+                
+                data = response.json()
+                protocol = data.get('protocolSection', {})
+                
+                # Step 3: Extract basic information
+                identification = protocol.get('identificationModule', {})
+                conditions_module = protocol.get('conditionsModule', {})
+                status_module = protocol.get('statusModule', {})
+                eligibility_module = protocol.get('eligibilityModule', {})
+                arms_module = protocol.get('armsInterventionsModule', {})
+                contacts_module = protocol.get('contactsLocationsModule', {})
+                
+                base_trial_data = {
+                    'nctId': identification.get('nctId', nct_id),
+                    'title': identification.get('briefTitle', ''),
+                    'officialTitle': identification.get('officialTitle', ''),
+                    'conditions': conditions_module.get('conditions', []),
+                    'status': status_module.get('overallStatus', 'UNKNOWN'),
+                    'interventions': [
+                        {'type': i.get('type', ''), 'name': i.get('name', '')}
+                        for i in arms_module.get('interventions', [])
+                    ],
+                    'contacts': [
+                        {
+                            'name': c.get('name', ''),
+                            'role': c.get('role', ''),
+                            'phone': c.get('phone', ''),
+                            'email': c.get('email', '')
+                        }
+                        for c in contacts_module.get('centralContacts', [])
+                    ]
+                }
+                
+                # Send base data immediately so frontend has context
+                yield json.dumps({"type": "base_data", "data": base_trial_data}) + "\n"
+                yield json.dumps({"status": "success", "message": "Trial data retrieved. Starting analysis..."}) + "\n"
 
-def parse_criteria_with_gemini(raw_criteria):
-    """Parse eligibility criteria using Gemini 2.5 Pro with streaming and thinking"""
-    
-    prompt = f"""<thinking>
+                # Step 4: Parse criteria using Gemini 2.5 Pro with streaming
+                raw_criteria = eligibility_module.get('eligibilityCriteria', '')
+                
+                if raw_criteria:
+                    prompt = f"""<thinking>
 Analyze this clinical trial eligibility criteria step by step:
 1. Identify where inclusion criteria section starts and ends
 2. Identify where exclusion criteria section starts and ends  
@@ -185,120 +158,67 @@ INSTRUCTIONS:
 
 Do not include any explanation or markdown formatting. Return ONLY the JSON object."""
 
-    try:
-        contents = [types.Content(
-            role="user",
-            parts=[types.Part(text=prompt)]
-        )]
+                    contents = [types.Content(
+                        role="user",
+                        parts=[types.Part(text=prompt)]
+                    )]
+                    
+                    config = types.GenerateContentConfig(
+                        temperature=0.1,
+                        max_output_tokens=2048,
+                        thinking_config=types.ThinkingConfig(
+                            thinking_budget=8192,
+                            include_thoughts=True
+                        )
+                    )
+                    
+                    chunk_index = 0
+                    
+                    for chunk in client.models.generate_content_stream(
+                        model=MODEL_NAME,
+                        contents=contents,
+                        config=config
+                    ):
+                        chunk_index += 1
+                        chunk_data = {"chunk_index": chunk_index, "candidates": []}
+                        
+                        if chunk.candidates:
+                            for candidate in chunk.candidates:
+                                candidate_data = {}
+                                if candidate.content and candidate.content.parts:
+                                    candidate_data["content"] = {"parts": []}
+                                    for part in candidate.content.parts:
+                                        part_data = {}
+                                        if hasattr(part, 'text') and part.text:
+                                            part_data["text"] = part.text
+                                        if hasattr(part, 'thought') and part.thought:
+                                            part_data["thought"] = part.thought
+                                        if part_data:
+                                            candidate_data["content"]["parts"].append(part_data)
+                                if candidate_data:
+                                    chunk_data["candidates"].append(candidate_data)
+                        
+                        yield json.dumps(chunk_data, ensure_ascii=False) + "\n"
+                    
+                    logging.info(f"Streaming complete - total chunks: {chunk_index}")
+                else:
+                    # No criteria to parse
+                    empty_result = {
+                        "inclusion": [],
+                        "exclusion": []
+                    }
+                    # Send empty result as if it were a final text chunk
+                    yield json.dumps({"type": "final_result", "data": empty_result}) + "\n"
+                    
+            except Exception as e:
+                logging.exception(f"Error during streaming: {str(e)}")
+                yield json.dumps({"status": "error", "message": str(e)}) + "\n"
+
+        return Response(generate(), mimetype='text/plain', headers=headers)
         
-        config = types.GenerateContentConfig(
-            temperature=0.1,  # Low temperature for consistent parsing
-            max_output_tokens=2048,
-            safety_settings=[
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HARASSMENT",
-                    threshold="BLOCK_ONLY_HIGH"
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_HATE_SPEECH",
-                    threshold="BLOCK_ONLY_HIGH"
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                    threshold="BLOCK_MEDIUM_AND_ABOVE"
-                ),
-                types.SafetySetting(
-                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                    threshold="BLOCK_ONLY_HIGH"
-                )
-            ],
-            thinking_config=types.ThinkingConfig(
-                thinking_budget=8192,  # Budget for thinking
-                include_thoughts=True  # Include thoughts in streaming
-            )
-        )
-        
-        # Stream the response for transparency
-        response_text = ""
-        thoughts = []
-        
-        logging.info("Streaming Gemini response with thinking...")
-        for chunk in client.models.generate_content_stream(
-            model=MODEL_NAME,
-            contents=contents,
-            config=config
-        ):
-            if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
-                for part in chunk.candidates[0].content.parts:
-                    if hasattr(part, 'text') and part.text:
-                        response_text += part.text
-                        logging.info(f"[TEXT CHUNK] {part.text[:100]}...")
-                    if hasattr(part, 'thought') and part.thought:
-                        thoughts.append(part.thought)
-                        logging.info(f"[THOUGHT] {part.thought}")
-        
-        logging.info(f"Thinking steps: {len(thoughts)}")
-        logging.info(f"Response length: {len(response_text)} chars")
-        
-        # Extract JSON from potential markdown code blocks
-        json_text = response_text.strip()
-        if json_text.startswith('```json'):
-            json_text = json_text.replace('```json\n', '').replace('```json', '').replace('```', '')
-        elif json_text.startswith('```'):
-            json_text = json_text.replace('```\n', '').replace('```', '')
-        
-        parsed = json.loads(json_text.strip())
-        
-        return {
-            'inclusion': parsed.get('inclusion', []),
-            'exclusion': parsed.get('exclusion', []),
-            'thoughts': thoughts  # Include thoughts for transparency
-        }
-        
-    except json.JSONDecodeError as e:
-        logging.error(f"JSON parsing error: {e}")
-        logging.error(f"Response text: {response_text}")
-        # Fallback: simple text splitting
-        result = fallback_parsing(raw_criteria)
-        result['thoughts'] = ['Fallback parsing used due to JSON error']
-        return result
+    except requests.exceptions.Timeout:
+        logging.exception("Request timeout")
+        return (jsonify({'error': 'Request to ClinicalTrials.gov timed out'}), 504, headers)
     except Exception as e:
-        logging.exception(f"Gemini parsing error: {str(e)}")
-        # Fallback: simple text splitting
-        result = fallback_parsing(raw_criteria)
-        result['thoughts'] = [f'Fallback parsing used due to error: {str(e)}']
-        return result
-
-
-def fallback_parsing(raw_criteria):
-    """Simple fallback parser if Gemini fails"""
-    lines = [l.strip() for l in raw_criteria.split('\n') if l.strip()]
-    inclusion = []
-    exclusion = []
-    current_section = None
-    
-    for line in lines:
-        lower = line.lower()
-        if 'inclusion criteria' in lower:
-            current_section = 'inclusion'
-            continue
-        elif 'exclusion criteria' in lower:
-            current_section = 'exclusion'
-            continue
-        
-        # Check if line starts with bullet or number
-        if line.startswith('*') or line.startswith('-') or line.startswith('•'):
-            cleaned = line.lstrip('*-•').strip()
-            if cleaned and current_section == 'inclusion':
-                inclusion.append(cleaned)
-            elif cleaned and current_section == 'exclusion':
-                exclusion.append(cleaned)
-        elif line and line[0].isdigit() and '.' in line[:3]:
-            # Numbered list
-            cleaned = line.split('.', 1)[1].strip() if '.' in line else line
-            if cleaned and current_section == 'inclusion':
-                inclusion.append(cleaned)
-            elif cleaned and current_section == 'exclusion':
-                exclusion.append(cleaned)
-    
-    return {'inclusion': inclusion, 'exclusion': exclusion}
+        logging.exception(f"Unexpected error: {str(e)}")
+        return (jsonify({'error': f'An internal server error occurred: {str(e)}'}), 500, headers)

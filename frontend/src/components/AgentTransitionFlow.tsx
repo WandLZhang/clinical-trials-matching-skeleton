@@ -62,7 +62,6 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
   }>({});
 
   // Use refs to track ongoing requests and prevent duplicates
-  const agent1RequestRef = React.useRef<AbortController | null>(null);
   const agent2RequestRef = React.useRef<AbortController | null>(null);
   
   // Track patient processing order
@@ -71,64 +70,6 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
   // Helper function to generate criterion ID
   const getCriterionId = (type: string, index: number) => `${type}-${index}`;
 
-  // Simulate Agent 1 data fetching with proper cleanup
-  useEffect(() => {
-    // Cancel any previous request
-    if (agent1RequestRef.current) {
-      agent1RequestRef.current.abort();
-    }
-
-    const abortController = new AbortController();
-    agent1RequestRef.current = abortController;
-
-    const fetchTrialData = async () => {
-      try {
-        const apiUrl = import.meta.env.VITE_API_AGENT1_URL;
-        
-        if (!apiUrl) {
-          console.error('API URL not configured');
-          return;
-        }
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ nctId: 'NCT06895057' }),
-          signal: abortController.signal
-        });
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        // Only update state if this request wasn't cancelled
-        if (!abortController.signal.aborted) {
-          setTrialData(data);
-        }
-
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          console.log('Agent 1 request aborted');
-        } else {
-          console.error('Error fetching trial data:', err);
-        }
-      }
-    };
-
-    fetchTrialData();
-
-    // Cleanup
-    return () => {
-      abortController.abort();
-      if (agent1RequestRef.current === abortController) {
-        agent1RequestRef.current = null;
-      }
-    };
-  }, []);
 
   // Start Agent 2 when trial data is available
   useEffect(() => {

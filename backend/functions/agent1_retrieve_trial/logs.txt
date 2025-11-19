@@ -1,0 +1,19 @@
+INFO:root:Google GenAI initialized for project 'wz-clinical-trials-skeleton'
+ * Serving Flask app 'retrieve_trial_data'
+ * Debug mode: on
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8081
+ * Running on http://192.168.1.95:8081
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug: * Restarting with watchdog (fsevents)
+INFO:root:Google GenAI initialized for project 'wz-clinical-trials-skeleton'
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 861-464-488
+INFO:werkzeug:127.0.0.1 - - [18/Nov/2025 21:44:30] "POST / HTTP/1.1" 200 -
+INFO:root:Fetching from https://clinicaltrials.gov/api/v2/studies/NCT06895057?format=json
+INFO:google_genai.models:AFC is enabled with max remote calls: 10.
+INFO:httpx:HTTP Request: POST https://us-central1-aiplatform.googleapis.com/v1beta1/projects/wz-clinical-trials-skeleton/locations/us-central1/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse "HTTP/1.1 200 OK"
+INFO:root:Streaming complete - total chunks: 8
+/opt/homebrew/Cellar/python@3.13/3.13.5/Frameworks/Python.framework/Versions/3.13/lib/python3.13/multiprocessing/resource_tracker.py:301: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown: {'/mp-28zfskka'}
+  warnings.warn(

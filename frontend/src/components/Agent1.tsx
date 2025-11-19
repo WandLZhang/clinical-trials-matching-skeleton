@@ -26,7 +26,6 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
   const [jsonResponse, setJsonResponse] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const logsEndRef = React.useRef<HTMLDivElement>(null);
-  const hasInitializedRef = React.useRef(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
   const addLog = (type: LogEntry['type'], message: string) => {
@@ -52,10 +51,6 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
   }, [logs]);
 
   useEffect(() => {
-    // Prevent duplicate initialization in StrictMode
-    if (hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
-
     // Cancel any previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -77,11 +72,6 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
         addLog('info', 'Initializing Cloud Function call...');
         addLog('info', `Endpoint: ${apiUrl}`);
         
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        addLog('info', 'Calling ClinicalTrials.gov API v2...');
-        addLog('info', 'Target NCT ID: NCT06895057');
-        
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -95,52 +85,130 @@ export const Agent1: React.FC<Agent1Props> = ({ onComplete, onNext, showNextButt
           throw new Error(`API error: ${response.status}`);
         }
 
-        addLog('success', 'ClinicalTrials.gov response received');
-        addLog('info', 'Starting Gemini 2.5 Pro criteria parsing...');
-        addLog('thinking', 'Thinking step 1: Analyzing trial structure');
-        
-        await new Promise(resolve => setTimeout(resolve, 400));
-        
-        addLog('thinking', 'Thinking step 2: Identifying inclusion criteria');
-        addLog('thinking', 'Thinking step 3: Identifying exclusion criteria');
-        
-        await new Promise(resolve => setTimeout(resolve, 400));
-        
-        addLog('thinking', 'Thinking step 4: Cleaning and formatting');
-        addLog('thinking', 'Thinking step 5: Structuring JSON output');
+        if (!response.body) {
+          throw new Error('Response body is empty');
+        }
 
-        const data = await response.json();
-        
-        addLog('success', 'Gemini parsing complete');
-        addLog('success', `Extracted ${data.inclusion?.length || 0} inclusion criteria`);
-        addLog('success', `Extracted ${data.exclusion?.length || 0} exclusion criteria`);
-        
-        // Stream JSON response character by character
-        const jsonStr = JSON.stringify(data, null, 2);
-        let currentJson = '';
-        for (let i = 0; i < jsonStr.length; i++) {
-          currentJson += jsonStr[i];
-          setJsonResponse(currentJson);
-          if (i % 5 === 0) { // Update every 5 characters for smoother animation
-            await new Promise(resolve => setTimeout(resolve, 10));
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponseText = '';
+        let baseTrialData: any = {};
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          // Decode the chunk and split by newline
+          const chunkStr = decoder.decode(value, { stream: true });
+          buffer += chunkStr;
+          const lines = buffer.split('\n');
+          
+          // Process all complete lines
+          buffer = lines.pop() || ''; // Keep the last incomplete line in the buffer
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            
+            try {
+              // console.log('Processing line:', line); // Optional debug
+              const data = JSON.parse(line);
+              
+              if (data.status) {
+                if (data.status === 'error') {
+                  throw new Error(data.message);
+                }
+                // Map status messages to log types
+                const logType = data.status === 'success' ? 'success' : 'info';
+                addLog(logType, data.message);
+              } 
+              else if (data.type === 'base_data') {
+                baseTrialData = data.data;
+                setTrialData(prev => ({
+                  ...prev,
+                  nctId: data.data.nctId,
+                  title: data.data.title
+                }));
+              }
+              else if (data.candidates && Array.isArray(data.candidates)) {
+                // Handle Gemini streaming chunks
+                for (const candidate of data.candidates) {
+                  if (candidate.content && candidate.content.parts) {
+                    for (const part of candidate.content.parts) {
+                      if (part.thought) {
+                        // It's a thought - log it
+                        // Based on testing, thought content is in part.text when part.thought is true
+                        const thoughtText = part.text || JSON.stringify(part.thought);
+                        addLog('thinking', thoughtText);
+                      } else if (part.text) {
+                        // It's the actual response text
+                        fullResponseText += part.text;
+                        setJsonResponse(fullResponseText);
+                      }
+                    }
+                  }
+                }
+              }
+              else if (data.type === 'final_result') {
+                // Handle explicit empty result if any
+                fullResponseText = JSON.stringify(data.data);
+                setJsonResponse(fullResponseText);
+              }
+            } catch (e) {
+              console.warn('Error parsing chunk:', e);
+            }
           }
         }
+
+        // Stream complete - clean up and parse the final JSON
+        // Remove markdown code blocks if present
+        let jsonStr = fullResponseText.trim();
+        if (jsonStr.startsWith('```json')) {
+          jsonStr = jsonStr.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        } else if (jsonStr.startsWith('```')) {
+          jsonStr = jsonStr.replace(/^```\n?/, '').replace(/\n?```$/, '');
+        }
         
-        // Add a delay to ensure React has rendered all state updates before triggering Agent 2
-        await new Promise(resolve => setTimeout(resolve, 150));
+        // Clean up any remaining whitespace or invalid characters
+        jsonStr = jsonStr.trim();
         
+        if (!jsonStr) {
+             throw new Error("Empty response received from Gemini");
+        }
+
+        let parsedCriteria;
+        try {
+          parsedCriteria = JSON.parse(jsonStr);
+        } catch (e) {
+          console.error('Error parsing final JSON:', e);
+          console.log('Raw string:', jsonStr);
+          throw new Error('Failed to parse Gemini response');
+        }
+        
+        addLog('success', 'Gemini parsing complete');
+        addLog('success', `Extracted ${parsedCriteria.inclusion?.length || 0} inclusion criteria`);
+        addLog('success', `Extracted ${parsedCriteria.exclusion?.length || 0} exclusion criteria`);
+
+        // Merge base data with parsed criteria
+        const finalData = {
+          ...baseTrialData,
+          inclusion: parsedCriteria.inclusion || [],
+          exclusion: parsedCriteria.exclusion || [],
+          criteriaCount: (parsedCriteria.inclusion?.length || 0) + (parsedCriteria.exclusion?.length || 0)
+        };
+
         setTrialData({
-          nctId: data.nctId,
-          title: data.title,
-          inclusionCount: data.inclusion?.length || 0,
-          exclusionCount: data.exclusion?.length || 0
+          nctId: finalData.nctId,
+          title: finalData.title,
+          inclusionCount: finalData.inclusion.length,
+          exclusionCount: finalData.exclusion.length
         });
 
         if (!isMounted) return;
         
         setStatus('complete');
         addLog('success', 'Processing complete');
-        onComplete(data);
+        onComplete(finalData);
 
       } catch (err) {
         // Ignore abort errors (expected when component unmounts)

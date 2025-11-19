@@ -22,7 +22,7 @@ const nodeTypes = {
 // Layout configuration - horizontal flow
 const AGENT1_X = 100;
 const AGENT2_X = 800;  // Reduced from 1400 to bring nodes closer
-const PATIENT_X = 1200;  // Position for patient nodes
+const PATIENT_X = 1600;  // Position for patient nodes
 const PATIENT_Y_START = 200;
 const PATIENT_Y_SPACING = 80;
 
