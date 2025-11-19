@@ -5,6 +5,7 @@ import { Agent2Box } from './orchestrator/Agent2Box';
 import { Agent4Box } from './orchestrator/Agent4Box';
 import { PatientNode } from './PatientNode';
 import { FolderNode } from './FolderNode';
+import { PipelineRowNode } from './PipelineRowNode';
 import './PatientNode.css';
 
 interface Agent1WrapperNodeData {
@@ -29,6 +30,11 @@ interface Agent4WrapperNodeData {
 interface FolderWrapperNodeData {
   patientId: string;
   folderUrl: string;
+}
+
+interface PipelineRowWrapperNodeData {
+  trialId: string;
+  trialTitle: string;
 }
 
 export const Agent1WrapperNode: React.FC<{ data: Agent1WrapperNodeData }> = ({ data }) => {
@@ -73,6 +79,14 @@ export const FolderWrapperNode: React.FC<{ data: FolderWrapperNodeData }> = ({ d
   return (
     <div style={{ position: 'relative' }}>
       <FolderNode data={data} />
+    </div>
+  );
+};
+
+export const PipelineRowWrapperNode: React.FC<{ data: PipelineRowWrapperNodeData }> = ({ data }) => {
+  return (
+    <div style={{ position: 'relative' }}>
+      <PipelineRowNode data={data} />
     </div>
   );
 };

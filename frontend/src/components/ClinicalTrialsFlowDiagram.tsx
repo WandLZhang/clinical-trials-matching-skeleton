@@ -11,7 +11,7 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Agent1WrapperNode, Agent2WrapperNode, Agent4WrapperNode, PatientNode, FolderWrapperNode } from './ClinicalTrialFlowNodes';
+import { Agent1WrapperNode, Agent2WrapperNode, Agent4WrapperNode, PatientNode, FolderWrapperNode, PipelineRowWrapperNode } from './ClinicalTrialFlowNodes';
 
 const nodeTypes = {
   agent1: Agent1WrapperNode,
@@ -19,6 +19,7 @@ const nodeTypes = {
   agent4: Agent4WrapperNode,
   patient: PatientNode,
   folder: FolderWrapperNode,
+  pipelineRow: PipelineRowWrapperNode,
 };
 
 // Layout configuration - horizontal flow
@@ -67,6 +68,7 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [isScaling, setIsScaling] = useState(false);
   const { setViewport } = useReactFlow();
   
   // Refs to track viewport transitions
@@ -483,12 +485,16 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView={false}
-        minZoom={0.3}
+        minZoom={0.1}
         maxZoom={1.5}
         defaultViewport={{ x: 300, y: -50, zoom: 0.8 }}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
+        style={{
+            filter: isScaling ? 'grayscale(100%) opacity(0.4)' : 'none',
+            transition: 'filter 1.5s ease-in-out',
+        }}
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -499,6 +505,165 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
         />
         <Controls showInteractive={false} />
       </ReactFlow>
+      <style>{`
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(50px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Programmatic Scale Overlay */}
+      {isScaling && (
+        <div className="scale-overlay">
+          <div className="scale-header">
+            <h1>Programmatic Scale</h1>
+            <p>Scaling to 450,000+ Clinical Trials</p>
+          </div>
+          <style>{`
+            .scale-overlay {
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              pointer-events: none;
+              z-index: 2000;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .scale-header {
+              /* Transparent background as requested */
+              background: transparent;
+              padding: 0;
+              text-align: center;
+              animation: fadeInScale 1s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            }
+            .scale-header h1 {
+              font-size: 5rem; /* Larger font size */
+              margin: 0 0 16px 0;
+              color: #1a237e;
+              font-weight: 800;
+              letter-spacing: -1px;
+              /* Ensure readability against background */
+              text-shadow: 0 4px 12px rgba(255,255,255,0.8);
+            }
+            .scale-header p {
+              font-size: 1.8rem;
+              margin: 0;
+              color: #546e7a;
+              font-weight: 600;
+              letter-spacing: 2px;
+              text-transform: uppercase;
+              text-shadow: 0 2px 8px rgba(255,255,255,0.8);
+            }
+            @keyframes fadeInScale {
+              from { opacity: 0; transform: scale(0.8) translateY(20px); }
+              to { opacity: 1; transform: scale(1) translateY(0); }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {agent4Data.status === 'complete' && !isScaling && (
+        <button
+          onClick={() => {
+            setIsScaling(true);
+            
+            // Scale out animation - anchor top-left to original pipeline
+            // With the grid extending right and down, we want to see the top-left corner
+            // zoom=0.1 fills the screen width with fewer columns but more detail
+            setViewport({ x: 0, y: 0, zoom: 0.1 }, { duration: 2000 });
+            
+            // Add replica nodes
+            // Add replica nodes
+            const mockTrials = Array.from({ length: 100 }).map((_, i) => {
+              const id = `NCT${String(Math.floor(Math.random() * 90000000) + 10000000)}`;
+              const conditions = ["Diabetes", "Hypertension", "Asthma", "Back Pain", "Depression", "Anxiety", "Arthritis", "Cancer", "Heart Disease", "Obesity"];
+              const condition = conditions[i % conditions.length];
+              return `${id} - ${condition} Study ${i+1}`;
+            });
+
+            setTimeout(() => {
+              const newNodes: Node[] = [];
+              
+              // Grid configuration
+              const COLUMNS = 5;
+              const START_X = AGENT1_X; // Start x same as main
+              const START_Y = 1200;     // Start below main
+              const SPACING_X = 4000;   // Width of row + gap
+              const SPACING_Y = 800;    // Height of row + gap
+              
+              mockTrials.forEach((trial, index) => {
+                const [id, title] = trial.split(' - ');
+                
+                // Calculate grid position
+                const col = index % COLUMNS;
+                const row = Math.floor(index / COLUMNS);
+                
+                const x = START_X + (col * SPACING_X);
+                const y = START_Y + (row * SPACING_Y);
+                
+                newNodes.push({
+                  id: `replica-${index}`,
+                  type: 'pipelineRow',
+                  position: { x, y },
+                  data: { trialId: id, trialTitle: title },
+                  draggable: false,
+                  style: {
+                    animation: `fadeInUp 0.5s ease-out ${(row * 0.1) + (col * 0.05)}s backwards`,
+                  }
+                });
+              });
+              
+              setNodes(nds => [...nds, ...newNodes]);
+            }, 500);
+          }}
+          style={{
+            position: 'absolute',
+            right: '40px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 1000,
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            backgroundColor: '#2196F3',
+            color: 'white',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            animation: 'slideInRight 0.5s ease-out, pulse 2s infinite',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '48px' }}>
+            arrow_forward
+          </span>
+          <style>{`
+            @keyframes slideInRight {
+              from { opacity: 0; transform: translate(100px, -50%); }
+              to { opacity: 1; transform: translate(0, -50%); }
+            }
+            @keyframes pulse {
+              0% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4); }
+              70% { box-shadow: 0 0 0 20px rgba(33, 150, 243, 0); }
+              100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0); }
+            }
+          `}</style>
+        </button>
+      )}
     </div>
   );
 };

@@ -1,0 +1,196 @@
+.pipeline-row-container-full {
+  /* Remove background/shadow to let individual agents stand out */
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  width: 3800px; /* Increased width for folders and larger components */
+  display: flex;
+  align-items: center;
+  gap: 0; /* Spacing handled by SVG connectors */
+  opacity: 0.8;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.pipeline-row-container-full:hover {
+  opacity: 1;
+  z-index: 10;
+}
+
+.scale-replica {
+  /* Ensure these don't shrink */
+  flex-shrink: 0;
+  width: 600px; /* Fixed width for agents matching real size approx */
+}
+
+.scale-replica .agent-box {
+  height: 450px; /* Increased height for logs */
+}
+
+.scale-replica .replica-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+  height: 250px;
+  overflow: hidden;
+}
+
+.replica-column {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.replica-col-header {
+  font-size: 11px;
+  font-weight: bold;
+  color: #4CAF50;
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+
+.replica-scroll-area {
+  flex: 1;
+  overflow: hidden;
+  font-family: monospace;
+  font-size: 10px;
+  color: #E0E0E0;
+}
+
+.replica-scroll-area pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-line {
+  margin-bottom: 4px;
+  display: flex;
+  gap: 6px;
+}
+
+.log-line .timestamp {
+  opacity: 0.5;
+  color: #888;
+}
+
+/* Removed CSS connectors in favor of SVG */
+
+.trial-id-floating {
+  position: absolute;
+  top: -50px;
+  left: 0;
+  font-family: 'Roboto', sans-serif;
+  font-size: 28px;
+  color: #546e7a;
+  font-weight: 500;
+  background: rgba(255,255,255,0.8);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+/* Patient Replica Column */
+.patients-column-replica {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 400px;
+  flex-shrink: 0;
+}
+
+.patient-replica-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.patient-box-replica {
+  border: 2px solid;
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 140px;
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.patient-id-text {
+  font-family: monospace;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.patient-status-icon {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.criteria-strip-replica {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.criteria-row {
+  display: flex;
+  gap: 3px;
+}
+
+.mini-criteria-box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid;
+  border-radius: 2px;
+}
+
+/* Folder Replica Column */
+.folders-column-replica {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-left: 0; /* Spacing handled by SVG connector */
+  flex-shrink: 0;
+}
+
+.folder-replica-item {
+  display: flex;
+  align-items: center;
+  height: 60px; /* Match patient height roughly */
+}
+
+.folder-replica-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 70px;
+  background: #E3F2FD;
+  border: 1px solid #90CAF9;
+  border-radius: 8px;
+  color: #1976D2;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.folder-icon {
+  font-size: 32px;
+}
+
+.folder-text {
+  font-size: 10px;
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+.pipeline-svg-connector {
+  flex-shrink: 0;
+  margin: 0 16px;
+}
