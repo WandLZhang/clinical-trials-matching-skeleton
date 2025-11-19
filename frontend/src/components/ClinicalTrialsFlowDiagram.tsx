@@ -11,16 +11,20 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Agent1WrapperNode, Agent2WrapperNode } from './ClinicalTrialFlowNodes';
+import { Agent1WrapperNode, Agent2WrapperNode, PatientNode } from './ClinicalTrialFlowNodes';
 
 const nodeTypes = {
   agent1: Agent1WrapperNode,
   agent2: Agent2WrapperNode,
+  patient: PatientNode,
 };
 
 // Layout configuration - horizontal flow
 const AGENT1_X = 100;
 const AGENT2_X = 800;  // Reduced from 1400 to bring nodes closer
+const PATIENT_X = 1200;  // Position for patient nodes
+const PATIENT_Y_START = 100;
+const PATIENT_Y_SPACING = 80;
 
 interface ClinicalTrialsFlowDiagramProps {
   agent1Data?: any;
@@ -32,12 +36,23 @@ interface ClinicalTrialsFlowDiagramProps {
     status?: 'searching' | 'processing' | 'complete';
     sseEvents?: Array<{ timestamp: string; data: any }>;
   };
+  flowData?: {
+    patients: {
+      [patientId: string]: {
+        patientId: string;
+        eligibility?: 'ELIGIBLE' | 'EXCLUDED' | 'REQUIRES_FOLLOW_UP';
+        endTime?: string;
+      };
+    };
+    totalPatients: number;
+  };
   onAgent1Complete?: (data: any) => void;
 }
 
 const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> = ({
   agent1Data,
   agent2Data = {},
+  flowData,
   onAgent1Complete,
 }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -163,6 +178,90 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
       })
     );
   }, [agent2Data, setNodes]);
+
+  // Add patient nodes when flowData is available
+  useEffect(() => {
+    if (!flowData || !flowData.patients || Object.keys(flowData.patients).length === 0) return;
+
+    const patientIds = Object.keys(flowData.patients);
+    const patientNodes: Node[] = [];
+    const patientEdges: Edge[] = [];
+
+    // Create patient nodes
+    patientIds.forEach((patientId, index) => {
+      const patient = flowData.patients[patientId];
+      const nodeId = `patient-${patientId}`;
+      
+      // Check if this patient node already exists
+      const existingNode = nodes.find(n => n.id === nodeId);
+      
+      if (!existingNode) {
+        patientNodes.push({
+          id: nodeId,
+          type: 'patient',
+          position: { 
+            x: PATIENT_X, 
+            y: PATIENT_Y_START + (index * PATIENT_Y_SPACING) 
+          },
+          data: {
+            patientId: patientId,
+            eligibility: patient.eligibility,
+            isProcessing: !patient.endTime,
+          },
+          draggable: false,
+        });
+        
+        // Create edge from Agent2 to this patient
+        patientEdges.push({
+          id: `edge-agent2-${nodeId}`,
+          source: 'agent2',
+          target: nodeId,
+          sourceHandle: 'source-right',
+          targetHandle: 'target-left',
+          style: { strokeWidth: 1 },
+          markerEnd: { type: MarkerType.ArrowClosed },
+        });
+      }
+    });
+
+    if (patientNodes.length > 0) {
+      setNodes(nds => [...nds.filter(n => !n.id.startsWith('patient-')), ...patientNodes]);
+      setEdges(eds => [...eds.filter(e => !e.id.startsWith('edge-agent2-patient-')), ...patientEdges]);
+      
+      // Adjust viewport to show patient nodes
+      setTimeout(() => {
+        setViewport(
+          {
+            x: -AGENT2_X + 200,
+            y: -50,
+            zoom: 0.6,
+          },
+          { duration: 800 }
+        );
+      }, 100);
+    }
+
+    // Update existing patient nodes with new data
+    setNodes(nds =>
+      nds.map((node) => {
+        if (node.id.startsWith('patient-')) {
+          const patientId = node.id.replace('patient-', '');
+          const patient = flowData.patients[patientId];
+          if (patient) {
+            return {
+              ...node,
+              data: {
+                patientId: patientId,
+                eligibility: patient.eligibility,
+                isProcessing: !patient.endTime,
+              },
+            };
+          }
+        }
+        return node;
+      })
+    );
+  }, [flowData, setNodes, setEdges, setViewport]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>

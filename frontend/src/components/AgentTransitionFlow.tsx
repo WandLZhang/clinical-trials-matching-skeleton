@@ -478,6 +478,7 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
           status: agent2Status,
           sseEvents,
         }}
+        flowData={flowData}
         onAgent1Complete={handleAgent1Complete}
       />
     </div>

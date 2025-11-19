@@ -2,6 +2,8 @@ import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { Agent1 } from './Agent1';
 import { Agent2Box } from './orchestrator/Agent2Box';
+import { PatientNode } from './PatientNode';
+import './PatientNode.css';
 
 interface Agent1WrapperNodeData {
   onComplete: (data: any) => void;
@@ -41,3 +43,5 @@ export const Agent2WrapperNode: React.FC<{ data: Agent2WrapperNodeData }> = ({ d
     </div>
   );
 };
+
+export { PatientNode };
