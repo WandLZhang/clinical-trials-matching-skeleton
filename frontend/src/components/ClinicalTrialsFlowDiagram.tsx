@@ -11,13 +11,14 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Agent1WrapperNode, Agent2WrapperNode, Agent4WrapperNode, PatientNode } from './ClinicalTrialFlowNodes';
+import { Agent1WrapperNode, Agent2WrapperNode, Agent4WrapperNode, PatientNode, FolderWrapperNode } from './ClinicalTrialFlowNodes';
 
 const nodeTypes = {
   agent1: Agent1WrapperNode,
   agent2: Agent2WrapperNode,
   agent4: Agent4WrapperNode,
   patient: PatientNode,
+  folder: FolderWrapperNode,
 };
 
 // Layout configuration - horizontal flow
@@ -25,6 +26,7 @@ const AGENT1_X = 100;
 const AGENT2_X = 800;  // Reduced from 1400 to bring nodes closer
 const PATIENT_X = 1600;  // Position for patient nodes
 const AGENT4_X = 2100; // Position for Agent 4 (Closer to patients)
+const FOLDER_X = 2600; // Position for Folder nodes
 const PATIENT_Y_START = 200;
 const PATIENT_Y_SPACING = 80;
 
@@ -354,7 +356,68 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
         return node;
       })
     );
-  }, [agent4Data, setNodes]);
+
+    // Process Agent 4 events to add Folder nodes
+    if (agent4Data.sseEvents) {
+      const folderEvents = agent4Data.sseEvents.filter(
+        (e) => e.data.status === 'progress' && e.data.folderUrl && e.data.patientId
+      );
+
+      if (folderEvents.length > 0) {
+        setNodes((nds) => {
+          const newNodes = [...nds];
+          
+          folderEvents.forEach((event, index) => {
+            const nodeId = `folder-${event.data.patientId}`;
+            const hasNode = newNodes.some((n) => n.id === nodeId);
+            
+            if (!hasNode) {
+              newNodes.push({
+                id: nodeId,
+                type: 'folder',
+                position: { 
+                  x: FOLDER_X, 
+                  y: PATIENT_Y_START + (index * PATIENT_Y_SPACING) // Stack them like patients
+                },
+                data: {
+                  patientId: event.data.patientId,
+                  folderUrl: event.data.folderUrl,
+                },
+                draggable: false,
+              });
+            }
+          });
+          
+          return newNodes;
+        });
+
+        setEdges((eds) => {
+          const newEdges = [...eds];
+          
+          folderEvents.forEach((event) => {
+            const nodeId = `folder-${event.data.patientId}`;
+            const edgeId = `edge-agent4-${nodeId}`;
+            const hasEdge = newEdges.some((e) => e.id === edgeId);
+            
+            if (!hasEdge) {
+              newEdges.push({
+                id: edgeId,
+                source: 'agent4',
+                target: nodeId,
+                sourceHandle: 'source-right',
+                targetHandle: 'target-left',
+                animated: true,
+                style: { strokeWidth: 1, stroke: '#2196F3' },
+                markerEnd: { type: MarkerType.ArrowClosed },
+              });
+            }
+          });
+          
+          return newEdges;
+        });
+      }
+    }
+  }, [agent4Data, setNodes, setEdges]);
 
   return (
     <div style={{ width: '100%', height: '100%' }}>

@@ -4,6 +4,7 @@ import { Agent1 } from './Agent1';
 import { Agent2Box } from './orchestrator/Agent2Box';
 import { Agent4Box } from './orchestrator/Agent4Box';
 import { PatientNode } from './PatientNode';
+import { FolderNode } from './FolderNode';
 import './PatientNode.css';
 
 interface Agent1WrapperNodeData {
@@ -23,6 +24,11 @@ interface Agent2WrapperNodeData {
 interface Agent4WrapperNodeData {
   status: 'waiting' | 'processing' | 'complete';
   sseEvents?: Array<{ timestamp: string; data: any }>;
+}
+
+interface FolderWrapperNodeData {
+  patientId: string;
+  folderUrl: string;
 }
 
 export const Agent1WrapperNode: React.FC<{ data: Agent1WrapperNodeData }> = ({ data }) => {
@@ -54,10 +60,19 @@ export const Agent4WrapperNode: React.FC<{ data: Agent4WrapperNodeData }> = ({ d
   return (
     <div style={{ position: 'relative' }}>
       <Handle type="target" position={Position.Left} id="target-left" />
+      <Handle type="source" position={Position.Right} id="source-right" />
       <Agent4Box
         status={data.status}
         sseEvents={data.sseEvents || []}
       />
+    </div>
+  );
+};
+
+export const FolderWrapperNode: React.FC<{ data: FolderWrapperNodeData }> = ({ data }) => {
+  return (
+    <div style={{ position: 'relative' }}>
+      <FolderNode data={data} />
     </div>
   );
 };

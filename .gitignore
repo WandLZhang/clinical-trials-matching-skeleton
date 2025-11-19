@@ -82,3 +82,8 @@ research/
 
 # Output files
 agent2_output.txt
+frontend/src/components/ClinicalTrialsFlowDiagram.tsx
+curl_data.json
+.gitignore
+backend/functions/agent4_generate_paperwork/logs.txt
+curl_output.txt

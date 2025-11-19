@@ -432,9 +432,9 @@ export const AgentTransitionFlow: React.FC<AgentTransitionFlowProps> = ({ onComp
 
     const startStreaming = async () => {
       try {
-        // Filter eligible patients
+        // Filter eligible patients (including REQUIRES_FOLLOW_UP for demo)
         const eligiblePatients = Object.values(flowData.patients).filter(
-          p => p.eligibility === 'ELIGIBLE'
+          p => p.eligibility === 'ELIGIBLE' || p.eligibility === 'REQUIRES_FOLLOW_UP'
         );
 
         if (eligiblePatients.length === 0) {

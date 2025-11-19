@@ -83,6 +83,18 @@ def generate_paperwork(request):
                     bucket = storage_client.bucket(BUCKET_NAME)
                     if not bucket.exists():
                         bucket = storage_client.create_bucket(BUCKET_NAME, location="us-central1")
+                    
+                    # Try to make bucket public (handle Uniform Bucket Level Access)
+                    try:
+                        policy = bucket.get_iam_policy(requested_policy_version=3)
+                        policy.bindings.append(
+                            {"role": "roles/storage.objectViewer", "members": {"allUsers"}}
+                        )
+                        bucket.set_iam_policy(policy)
+                        logging.info(f"Bucket {BUCKET_NAME} made public.")
+                    except Exception as perm_err:
+                        logging.warning(f"Could not set bucket public IAM: {perm_err}")
+
                 except Exception as e:
                     logging.warning(f"Bucket init warning: {e}")
                     bucket = storage_client.bucket(BUCKET_NAME)
@@ -170,7 +182,7 @@ def process_patient_paperwork(patient, trial_info, bucket, nct_id):
         
     return {
         'patientId': patient_id,
-        'folderUrl': f"https://storage.googleapis.com/{BUCKET_NAME}/{base_path}/",
+        'folderUrl': f"https://console.cloud.google.com/storage/browser/{BUCKET_NAME}/{base_path}",
         'files': uploaded_links
     }
 
