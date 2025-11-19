@@ -74,6 +74,8 @@ export const PatientNode: React.FC<{ data: PatientNodeData }> = ({ data }) => {
     if (evaluation.result === null || evaluation.result === undefined) {
       // Loading state
       pulseAnimation = 'pulse-grey';
+      backgroundColor = '#E0E0E0'; // Grey 300
+      borderColor = '#BDBDBD'; // Grey 400
     } else if (evaluation.result === 'MISSING') {
       backgroundColor = '#FF9800'; // Orange for missing data
       borderColor = '#F57C00';
