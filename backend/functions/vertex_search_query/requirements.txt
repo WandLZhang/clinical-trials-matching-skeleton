@@ -1,0 +1,5 @@
+functions-framework==3.*
+Flask==3.1.0
+google-cloud-discoveryengine
+requests==2.32.*
+google-auth
