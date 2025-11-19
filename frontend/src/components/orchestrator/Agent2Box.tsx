@@ -17,8 +17,8 @@ export const Agent2Box: React.FC<Agent2BoxProps> = ({
 
   // Auto-scroll logs to bottom within the container only
   useEffect(() => {
-    if (innerScrollRef.current) {
-      innerScrollRef.current.scrollTop = innerScrollRef.current.scrollHeight;
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [sseEvents]);
 
