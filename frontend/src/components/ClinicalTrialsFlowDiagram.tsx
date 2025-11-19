@@ -26,7 +26,7 @@ const AGENT1_X = 100;
 const AGENT2_X = 800;  // Reduced from 1400 to bring nodes closer
 const PATIENT_X = 1600;  // Position for patient nodes
 const AGENT4_X = 2100; // Position for Agent 4 (Closer to patients)
-const FOLDER_X = 2600; // Position for Folder nodes
+const FOLDER_X = 3050; // Position for Folder nodes
 const PATIENT_Y_START = 200;
 const PATIENT_Y_SPACING = 80;
 
@@ -68,6 +68,11 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const { setViewport } = useReactFlow();
+  
+  // Refs to track viewport transitions
+  const hasPannedToAgent2 = React.useRef(false);
+  const hasPannedToPatients = React.useRef(false);
+  const hasPannedToAgent4 = React.useRef(false);
 
   // Initialize nodes - only Agent1 initially
   useEffect(() => {
@@ -155,16 +160,19 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
     });
 
     // Pan viewport to show Agent2 centered
-    setTimeout(() => {
-      setViewport(
-        {
-          x: -AGENT2_X + 400,
-          y: -50,
-          zoom: 0.8,
-        },
-        { duration: 800 }
-      );
-    }, 500);
+    if (!hasPannedToAgent2.current) {
+      hasPannedToAgent2.current = true;
+      setTimeout(() => {
+        setViewport(
+          {
+            x: -AGENT2_X + 600, // Adjusted to move view left
+            y: -50,
+            zoom: 0.8,
+          },
+          { duration: 800 }
+        );
+      }, 500);
+    }
   }, [agent1Data, agent2Data, setNodes, setEdges, setViewport]);
 
   // Update Agent2 data when it changes
@@ -239,17 +247,20 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
       setNodes(nds => [...nds.filter(n => !n.id.startsWith('patient-')), ...patientNodes]);
       setEdges(eds => [...eds.filter(e => !e.id.startsWith('edge-agent2-patient-')), ...patientEdges]);
       
-      // Adjust viewport to show patient nodes
-      setTimeout(() => {
-        setViewport(
-          {
-            x: -AGENT2_X + 200,
-            y: -50,
-            zoom: 0.6,
-          },
-          { duration: 800 }
-        );
-      }, 100);
+      // Adjust viewport to show patient nodes (only once when patients first appear)
+      if (!hasPannedToPatients.current) {
+        hasPannedToPatients.current = true;
+        setTimeout(() => {
+          setViewport(
+            {
+              x: -AGENT2_X + 400, // Adjusted to move view left
+              y: -50,
+              zoom: 0.75, // Increased zoom (was 0.6)
+            },
+            { duration: 800 }
+          );
+        }, 100);
+      }
     }
 
     // Update existing patient nodes with new data
@@ -301,6 +312,7 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
     if (flowData && flowData.patients) {
       const patientIds = Object.keys(flowData.patients);
       const newEdges: Edge[] = [];
+      const isComplete = agent4Data.status === 'complete';
       
       patientIds.forEach(patientId => {
         const edgeId = `edge-patient-${patientId}-agent4`;
@@ -312,31 +324,54 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
             target: 'agent4',
             sourceHandle: 'source-right',
             targetHandle: 'target-left',
-            animated: true,
-            style: { strokeWidth: 1, stroke: '#4CAF50', opacity: 0.5 },
+            animated: !isComplete,
+            style: { 
+              strokeWidth: isComplete ? 2 : 1, 
+              stroke: '#4CAF50', 
+              opacity: isComplete ? 1 : 0.5 
+            },
             markerEnd: { type: MarkerType.ArrowClosed },
           });
         }
       });
 
       setEdges(eds => {
-        const existingEdgeIds = new Set(eds.map(e => e.id));
+        // Update existing edges to match new animation state
+        const updatedEds = eds.map(e => {
+          if (e.target === 'agent4' && e.source.startsWith('patient-')) {
+            return {
+              ...e,
+              animated: !isComplete,
+              style: { 
+                strokeWidth: isComplete ? 2 : 1, 
+                stroke: '#4CAF50', 
+                opacity: isComplete ? 1 : 0.5 
+              }
+            };
+          }
+          return e;
+        });
+
+        const existingEdgeIds = new Set(updatedEds.map(e => e.id));
         const uniqueNewEdges = newEdges.filter(e => !existingEdgeIds.has(e.id));
-        return [...eds, ...uniqueNewEdges];
+        return [...updatedEds, ...uniqueNewEdges];
       });
     }
 
     // Pan viewport to show Agent4 but keep some criteria boxes visible
-    setTimeout(() => {
-      setViewport(
-        {
-          x: -AGENT4_X + 700, // Adjusted to show context to the left of Agent 4
-          y: -50,
-          zoom: 0.8,
-        },
-        { duration: 1200 }
-      );
-    }, 1000);
+    if (!hasPannedToAgent4.current) {
+      hasPannedToAgent4.current = true;
+      setTimeout(() => {
+        setViewport(
+          {
+            x: -AGENT4_X + 700, // Adjusted to show context to the left of Agent 4
+            y: -50,
+            zoom: 0.8,
+          },
+          { duration: 1200 }
+        );
+      }, 1000);
+    }
 
   }, [agent2Data.status, flowData, agent4Data, setNodes, setEdges, setViewport]);
 
@@ -392,7 +427,24 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
         });
 
         setEdges((eds) => {
-          const newEdges = [...eds];
+          const isComplete = agent4Data.status === 'complete';
+          
+          // Update existing edges
+          const updatedEds = eds.map(e => {
+            if (e.source === 'agent4' && e.target.startsWith('folder-')) {
+              return {
+                ...e,
+                animated: !isComplete,
+                style: { 
+                  strokeWidth: isComplete ? 2 : 1, 
+                  stroke: '#2196F3' 
+                }
+              };
+            }
+            return e;
+          });
+
+          const newEdges = [...updatedEds];
           
           folderEvents.forEach((event) => {
             const nodeId = `folder-${event.data.patientId}`;
@@ -406,8 +458,11 @@ const ClinicalTrialsFlowDiagramInner: React.FC<ClinicalTrialsFlowDiagramProps> =
                 target: nodeId,
                 sourceHandle: 'source-right',
                 targetHandle: 'target-left',
-                animated: true,
-                style: { strokeWidth: 1, stroke: '#2196F3' },
+                animated: !isComplete,
+                style: { 
+                  strokeWidth: isComplete ? 2 : 1, 
+                  stroke: '#2196F3' 
+                },
                 markerEnd: { type: MarkerType.ArrowClosed },
               });
             }
